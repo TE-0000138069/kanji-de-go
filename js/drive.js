@@ -841,7 +841,12 @@ KG.Drive = class {
     const cw = Math.min(w * 0.2, h * 0.28), ch = cw * 0.62;
     const bounce = this.shake ? Math.sin(this.clock * 18) * ch * 0.01 * (this.speedMul || 0) : 0;
     const x = w / 2, y = h - ch * 0.35 - h * 0.03 + bounce;
-    const color = (KG.CAR_COLORS.find(c => c.id === KG.state.carColor) || KG.CAR_COLORS[0]).color;
+    const look = KG.carLook();
+    let color = look.color;
+    if (color === 'rainbow') {
+      color = ctx.createLinearGradient(-cw / 2, 0, cw / 2, 0); // 車の位置を原点にして描くので、車の中心からの位置で指定
+      ['#ff4d4d', '#ff9f43', '#ffe14d', '#4cd964', '#4da6ff', '#7d5fff'].forEach((c, i) => color.addColorStop(i / 5, c));
+    }
     const rr = (a, b, c, d, e) => KG.rr(ctx, a, b, c, d, e);
 
     // れんぞく正解のオーラ
@@ -861,17 +866,21 @@ KG.Drive = class {
     ctx.fillStyle = 'rgba(0,0,0,0.28)';
     ctx.beginPath(); ctx.ellipse(0, ch * 0.44, cw * 0.58, ch * 0.12, 0, 0, Math.PI * 2); ctx.fill();
     // タイヤ
-    ctx.fillStyle = '#222';
+    ctx.fillStyle = look.wheel === 'goldwheel' ? '#c9a227' : '#222';
     rr(-cw * 0.52, ch * 0.02, cw * 0.2, ch * 0.42, ch * 0.06); ctx.fill();
     rr(cw * 0.32, ch * 0.02, cw * 0.2, ch * 0.42, ch * 0.06); ctx.fill();
     ctx.fillStyle = '#9aa0a8';
     ctx.fillRect(-cw * 0.47, ch * 0.18, cw * 0.1, ch * 0.08);
     ctx.fillRect(cw * 0.37, ch * 0.18, cw * 0.1, ch * 0.08);
     // 車体
-    const body = ctx.createLinearGradient(0, -ch * 0.3, 0, ch * 0.4);
-    body.addColorStop(0, '#ffffff');
-    body.addColorStop(0.08, color);
-    body.addColorStop(1, color);
+    // にじいろのときは、光沢をつけずに にじいろのまま塗る
+    let body = color;
+    if (typeof color === 'string') {
+      body = ctx.createLinearGradient(0, -ch * 0.3, 0, ch * 0.4);
+      body.addColorStop(0, '#ffffff');
+      body.addColorStop(0.08, color);
+      body.addColorStop(1, color);
+    }
     ctx.fillStyle = body;
     rr(-cw * 0.5, -ch * 0.25, cw, ch * 0.62, ch * 0.2); ctx.fill();
     ctx.fillStyle = color;
@@ -898,6 +907,26 @@ KG.Drive = class {
       ctx.beginPath(); ctx.arc(lx, -ch * 0.06, cw * 0.14, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = '#ff3b3b';
       rr(lx - cw * 0.08, -ch * 0.12, cw * 0.16, ch * 0.12, ch * 0.05); ctx.fill();
+    }
+    // やねのアイテム
+    const top = -ch * 0.64;
+    if (look.roof === 'crown') {
+      ctx.fillStyle = '#ffd54a';
+      ctx.beginPath();
+      ctx.moveTo(-cw * 0.14, top); ctx.lineTo(-cw * 0.14, top - ch * 0.22); ctx.lineTo(-cw * 0.07, top - ch * 0.1);
+      ctx.lineTo(0, top - ch * 0.26); ctx.lineTo(cw * 0.07, top - ch * 0.1); ctx.lineTo(cw * 0.14, top - ch * 0.22); ctx.lineTo(cw * 0.14, top);
+      ctx.fill();
+    } else if (look.roof === 'siren') {
+      ctx.fillStyle = '#ff3030'; rr(-cw * 0.14, top - ch * 0.14, cw * 0.13, ch * 0.14, ch * 0.03); ctx.fill();
+      ctx.fillStyle = '#3d8bff'; rr(cw * 0.01, top - ch * 0.14, cw * 0.13, ch * 0.14, ch * 0.03); ctx.fill();
+    } else if (look.roof === 'flag') {
+      ctx.fillStyle = '#9aa0a8'; ctx.fillRect(cw * 0.2, top - ch * 0.5, cw * 0.02, ch * 0.5);
+      ctx.fillStyle = '#ff5a4f'; ctx.fillRect(cw * 0.22, top - ch * 0.5, cw * 0.16, ch * 0.18);
+    }
+    // もよう
+    if (look.decal === 'star' || look.decal === 'fire') {
+      ctx.fillStyle = look.decal === 'star' ? '#ffd54a' : '#ff9f43';
+      for (const s of [-1, 1]) { ctx.fillRect(s * cw * 0.36 - cw * 0.04, ch * 0.05, cw * 0.08, ch * 0.08); }
     }
     // ナンバー
     ctx.fillStyle = '#ffffff';

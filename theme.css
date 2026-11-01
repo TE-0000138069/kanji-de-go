@@ -198,3 +198,82 @@ html, body { background: #5fb4f2; }
 /* ---- 上の帯 ---- */
 .topbar h2 { text-align: center; }
 .parent .bars span { background: #4f9e33; border-radius: 0; }
+.ico-wheel { background-image: var(--ico-wheel); }
+.ico-flag { background-image: var(--ico-flag); }
+.ico-crown { background-image: var(--ico-crown); }
+.ico-siren { background-image: var(--ico-siren); }
+.ico-truck { background-image: var(--ico-truck); }
+.ico-kart { background-image: var(--ico-kart); }
+.ico-bus { background-image: var(--ico-bus); }
+.ico-fire { background-image: var(--ico-fire); }
+.ico-rainbow { background-image: var(--ico-rainbow); }
+
+/* ---- 車庫（車のアイテム）---- */
+.garage-wrap { display: flex; gap: 18px; width: min(1100px, 100%); align-items: flex-start; flex-wrap: wrap; justify-content: center; }
+.garage-left { width: 360px; display: flex; flex-direction: column; gap: 10px; }
+.preview-box { position: relative; width: 100%; aspect-ratio: 4 / 3; background: linear-gradient(#7ac4f6, #c9e9fb); border: 3px solid var(--edge); box-shadow: inset 3px 3px 0 #fff, inset -3px -3px 0 #555; overflow: hidden; }
+.preview-box .car-preview { position: absolute; inset: 0; width: 100%; height: 100%; }
+.preview-box .no3d { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--pix); color: #fff; text-shadow: 2px 2px 0 #000; }
+.garage-next { background: var(--panel); border: 3px solid var(--edge); box-shadow: inset 3px 3px 0 #fff, inset -3px -3px 0 #555; padding: 8px 12px; font-family: var(--pix); color: var(--ink); display: flex; align-items: center; gap: 8px; font-size: 0.85em; }
+.garage-next .bar { flex: 1; height: 12px; background: #555; border: 2px solid var(--edge); }
+.garage-next .bar i { display: block; height: 100%; background: #4f9e33; }
+.garage-right { flex: 1; min-width: 320px; display: flex; flex-direction: column; gap: 10px; }
+.garage-right .tabs { justify-content: flex-start; }
+.garage-list { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); width: 100%; gap: 8px; }
+.garage-item { padding: 10px 6px; gap: 6px; font-size: 0.9em; }
+.garage-item .ico { width: 48px; height: 48px; }
+.garage-item small { font-size: 0.75em; color: #4a4a4a; }
+.garage-item.locked .ico, .garage-item.locked .sw { filter: grayscale(1) brightness(0.6); }
+.garage-item .none { width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; font-size: 1.6em; color: #6b6b6b; }
+
+/* ---- アイテム ゲット！ ---- */
+.reward-box { width: min(440px, 92vw); }
+.reward-box h2 { font-size: 1.6em; color: #8a5a00 !important; animation: tagpulse 0.6s ease-in-out infinite alternate; }
+.reward-name { font-family: var(--pix); font-size: 1.3em; display: flex; align-items: center; gap: 8px; margin: 0; }
+.reward-name .ico { width: 1.8em; height: 1.8em; }
+.row-btns { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.stamp-next { font-family: var(--pix); color: #fff; text-shadow: 2px 2px 0 #2b2b2b; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+
+/* ---- 地図（すごろく）---- */
+#scr-map { overflow: hidden; }
+.tabs button small { font-size: 0.7em; opacity: 0.9; }
+.map-head { width: min(1100px, 100%); display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 8px; }
+.map-progress { flex: 1; min-width: 300px; background: var(--panel); border: 3px solid var(--edge); box-shadow: inset 3px 3px 0 #fff, inset -3px -3px 0 #555; padding: 6px 14px; font-family: var(--pix); color: var(--ink); }
+.mp-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.mp-row.small { font-size: 0.75em; color: #4a4a4a; }
+.mp-row b { font-weight: normal; }
+.mp-bar { flex: 1; min-width: 120px; height: 14px; background: #555; border: 2px solid var(--edge); }
+.mp-bar i { display: block; height: 100%; background: linear-gradient(90deg, #4f9e33, #9bd34a); }
+.map-world { position: relative; flex: 1; width: min(1100px, 100%); min-height: 320px; border: 4px solid var(--edge); box-shadow: inset 3px 3px 0 rgba(255,255,255,0.3), 0 6px 0 rgba(0,0,0,0.35); overflow: hidden; }
+#mapCanvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges; }
+.map-node {
+  position: absolute; transform: translate(-50%, -50%); width: 104px; min-height: 84px; padding: 4px 4px 6px;
+  border: 3px solid var(--edge); border-radius: 0; font-family: var(--pix); color: #fff; text-shadow: 2px 2px 0 #2b2b2b;
+  display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: pointer; z-index: 2;
+  background: var(--tex-grassBlock) 0 0 / 100% 100%; image-rendering: pixelated;
+  box-shadow: inset -4px -4px 0 rgba(0,0,0,0.3), 0 6px 0 rgba(0,0,0,0.4);
+}
+.map-node:active { transform: translate(-50%, -46%); }
+.map-node .nn { font-size: 1.5em; line-height: 1.1; }
+.map-node .nl { font-family: var(--font); font-weight: bold; font-size: 0.62em; background: rgba(0,0,0,0.45); padding: 1px 4px; max-width: 96px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.map-node .ns .ico { width: 0.95em; height: 0.95em; }
+.map-node .ns.small { font-size: 0.65em; }
+.map-node.cleared { filter: saturate(1.1); }
+.map-node.current { border-color: #ffd54a; box-shadow: 0 0 0 4px #1b1b1b, 0 0 18px 6px rgba(255, 213, 74, 0.85), 0 8px 0 rgba(0,0,0,0.4); animation: nodePulse 1s ease-in-out infinite alternate; z-index: 3; }
+@keyframes nodePulse { to { box-shadow: 0 0 0 4px #1b1b1b, 0 0 30px 12px rgba(255, 213, 74, 0.95), 0 8px 0 rgba(0,0,0,0.4); } }
+.map-node .next { position: absolute; top: -16px; right: -18px; background: #ff5a4f; color: #fff; font-size: 0.7em; padding: 1px 6px; border: 2px solid var(--edge); transform: rotate(8deg); animation: tagpulse 0.6s ease-in-out infinite alternate; }
+.map-node.locked { background-image: var(--tex-cobble); background-size: 48px 48px; color: #ddd; filter: brightness(0.85); cursor: default; }
+.map-node.boss { background-image: var(--tex-obsidian); background-size: 48px 48px; }
+.map-car { position: absolute; width: 54px; height: 54px; transform: translateX(-50%); background: var(--ico-car) center / contain no-repeat; image-rendering: pixelated; z-index: 4; pointer-events: none; animation: carHop 0.5s ease-in-out infinite alternate; filter: drop-shadow(3px 3px 0 rgba(0,0,0,0.4)); }
+.map-car.moving { transition: left 1.4s ease-in-out, top 1.4s ease-in-out; animation: carHop 0.18s ease-in-out infinite alternate; }
+@keyframes carHop { to { margin-top: -8px; } }
+.map-burst { position: absolute; z-index: 5; pointer-events: none; }
+.map-burst i { position: absolute; width: 10px; height: 10px; background: var(--c); animation: burst 1s ease-out forwards; transform: rotate(var(--a)) translateY(0); }
+@keyframes burst { to { transform: rotate(var(--a)) translateY(-90px); opacity: 0; } }
+.map-burst b { position: absolute; transform: translate(-50%, -150%); font-family: var(--pix); font-weight: normal; font-size: 1.8em; color: #ffd54a; text-shadow: 3px 3px 0 #7a5800; animation: newPop 1.6s ease-out forwards; white-space: nowrap; }
+@keyframes newPop { 0% { transform: translate(-50%, -100%) scale(0.3); } 30% { transform: translate(-50%, -170%) scale(1.3); } 100% { transform: translate(-50%, -190%) scale(1); opacity: 0; } }
+.map-extra .btn { font-size: 0.8em; }
+
+/* ---- ドリルに合わせる ---- */
+.parent textarea { width: 100%; font-family: var(--font); font-size: 18px; padding: 8px; border: 3px solid var(--edge); border-radius: 0; box-sizing: border-box; }
+.drill-msg { margin-top: 6px; font-size: 14px; }

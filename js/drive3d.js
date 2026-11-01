@@ -300,24 +300,99 @@ window.KG = window.KG || {};
     tlight(m) { m.box(0, 0, 0, 0.12, 0.14, 0.7, '#ffcf7a', true); },
   };
 
-  function carModel(m, color) {
-    m.box(0, 0.1, 0, 1.12, 0.12, 1.92, '#333333');
-    m.box(0, 0.2, 0, 1.1, 0.42, 1.9, color);
-    m.box(0, 0.62, 0.1, 0.9, 0.42, 1.0, color);
-    m.box(0, 0.66, 0.61, 0.74, 0.3, 0.03, '#a9dcff');
-    m.box(0.455, 0.66, 0.1, 0.03, 0.28, 0.8, '#a9dcff');
-    m.box(-0.455, 0.66, 0.1, 0.03, 0.28, 0.8, '#a9dcff');
-    m.box(0, 0.66, -0.41, 0.74, 0.3, 0.03, '#a9dcff');
-    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-      m.box(sx * 0.52, 0, sz * 0.6, 0.22, 0.4, 0.42, '#1e1e1e');
-      m.box(sx * 0.635, 0.12, sz * 0.6, 0.02, 0.16, 0.16, '#9aa0a8');
+  // ---- 車（形・タイヤ・やね・もよう・色の組み合わせ）----
+  // look: { color: '#ff5a4f' か 'rainbow', body, wheel, roof, decal }
+  const RAINBOW = ['#ff4d4d', '#ff9f43', '#ffe14d', '#4cd964', '#4da6ff', '#7d5fff'];
+  function carModel(m, look) {
+    const rainbow = look.color === 'rainbow';
+    // 色をぬる箱。にじいろのときは、前から後ろへ6色のしま模様にする
+    const paint = (x, y, z, w, h, d) => {
+      if (!rainbow) return m.box(x, y, z, w, h, d, look.color);
+      for (let i = 0; i < 6; i++) m.box(x, y, z - d / 2 + (d / 6) * (i + 0.5), w, h, d / 6, RAINBOW[i]);
+    };
+    const glass = '#a9dcff';
+    let half = 0.55, len = 0.6, rear = 0.95, roofY = 1.04, roofZ = 0.1;
+    if (look.body === 'truck') {
+      half = 0.575; len = 0.75; rear = 1.16; roofY = 1.15; roofZ = -0.55;
+      m.box(0, 0.1, 0, 1.17, 0.12, 2.32, '#333333');
+      paint(0, 0.2, 0, 1.15, 0.38, 2.3);
+      paint(0, 0.58, -0.55, 1.1, 0.57, 1.0);
+      m.box(0, 0.72, -0.04, 0.85, 0.3, 0.03, glass);
+      m.box(0.556, 0.72, -0.55, 0.03, 0.28, 0.7, glass);
+      m.box(-0.556, 0.72, -0.55, 0.03, 0.28, 0.7, glass);
+      for (const sx of [-1, 1]) m.box(sx * 0.545, 0.58, 0.55, 0.06, 0.25, 1.15, '#5b6470');
+      m.box(0, 0.58, 1.12, 1.1, 0.25, 0.06, '#5b6470');
+      m.box(-0.2, 0.58, 0.45, 0.5, 0.45, 0.5, '#c8a26a');
+      m.box(0.25, 0.58, 0.75, 0.4, 0.35, 0.4, '#b98a4b');
+    } else if (look.body === 'kart') {
+      half = 0.6; len = 0.55; rear = 0.85; roofY = 1.08; roofZ = 0.25;
+      paint(0, 0.1, 0, 1.0, 0.25, 1.7);
+      m.box(0, 0.35, 0.25, 0.55, 0.35, 0.45, '#333333');
+      m.box(0, 0.35, -0.3, 0.08, 0.45, 0.08, '#333333');
+      m.box(0, 0.78, -0.27, 0.45, 0.08, 0.08, '#333333');
+      m.box(0, 0.7, 0.25, 0.4, 0.38, 0.4, '#ffffff');
+      m.box(0, 0.78, 0.04, 0.32, 0.14, 0.02, '#2b2d42');
+      m.box(0, 0.12, -0.9, 1.1, 0.12, 0.12, '#333333');
+    } else if (look.body === 'bus') {
+      half = 0.6; len = 0.85; rear = 1.31; roofY = 1.3; roofZ = 0;
+      m.box(0, 0.1, 0, 1.22, 0.12, 2.62, '#333333');
+      paint(0, 0.15, 0, 1.2, 1.15, 2.6);
+      for (let i = 0; i < 5; i++) for (const sx of [-1, 1]) m.box(sx * 0.605, 0.75, -1.0 + i * 0.5, 0.02, 0.32, 0.38, glass);
+      m.box(0, 0.75, 1.305, 0.9, 0.36, 0.02, glass);
+      m.box(0, 1.3, 0, 0.9, 0.08, 2.0, '#dddddd');
+    } else {
+      m.box(0, 0.1, 0, 1.12, 0.12, 1.92, '#333333');
+      paint(0, 0.2, 0, 1.1, 0.42, 1.9);
+      paint(0, 0.62, 0.1, 0.9, 0.42, 1.0);
+      m.box(0, 0.66, 0.61, 0.74, 0.3, 0.03, glass);
+      m.box(0.455, 0.66, 0.1, 0.03, 0.28, 0.8, glass);
+      m.box(-0.455, 0.66, 0.1, 0.03, 0.28, 0.8, glass);
+      m.box(0, 0.66, -0.41, 0.74, 0.3, 0.03, glass);
+      m.box(0, 0.86, 0.82, 1.12, 0.07, 0.26, '#2b2d42');
+      m.box(-0.36, 0.62, 0.82, 0.06, 0.24, 0.06, '#2b2d42');
+      m.box(0.36, 0.62, 0.82, 0.06, 0.24, 0.06, '#2b2d42');
     }
-    m.box(-0.38, 0.32, 0.95, 0.24, 0.12, 0.03, '#ff2a2a', true);
-    m.box(0.38, 0.32, 0.95, 0.24, 0.12, 0.03, '#ff2a2a', true);
-    m.box(0, 0.22, 0.96, 0.34, 0.14, 0.02, '#ffffff');
-    m.box(0, 0.86, 0.82, 1.12, 0.07, 0.26, '#2b2d42');
-    m.box(-0.36, 0.62, 0.82, 0.06, 0.24, 0.06, '#2b2d42');
-    m.box(0.36, 0.62, 0.82, 0.06, 0.24, 0.06, '#2b2d42');
+    // タイヤ
+    const gold = look.wheel === 'goldwheel';
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      m.box(sx * (half - 0.03), 0, sz * len, 0.22, 0.4, 0.42, gold ? '#c9a227' : '#1e1e1e');
+      m.box(sx * (half + 0.085), 0.12, sz * len, 0.02, 0.16, 0.16, gold ? '#fff2a8' : '#9aa0a8', gold);
+    }
+    // テールランプとナンバー
+    m.box(-0.38, 0.32, rear, 0.24, 0.12, 0.03, '#ff2a2a', true);
+    m.box(0.38, 0.32, rear, 0.24, 0.12, 0.03, '#ff2a2a', true);
+    if (look.body !== 'kart') m.box(0, 0.22, rear + 0.01, 0.34, 0.14, 0.02, '#ffffff');
+    // やね
+    if (look.roof === 'flag') {
+      m.box(0.3, roofY, roofZ + 0.2, 0.06, 1.0, 0.06, '#dddddd');
+      m.box(0.56, roofY + 0.62, roofZ + 0.2, 0.5, 0.34, 0.04, '#ff5a4f');
+      m.box(0.56, roofY + 0.72, roofZ + 0.2, 0.14, 0.14, 0.05, '#ffffff', true);
+    } else if (look.roof === 'crown') {
+      m.box(0, roofY, roofZ, 0.62, 0.2, 0.62, '#ffd54a');
+      for (const [x, z] of [[-0.25, -0.25], [0.25, -0.25], [-0.25, 0.25], [0.25, 0.25]]) m.box(x, roofY + 0.2, roofZ + z, 0.12, 0.2, 0.12, '#ffd54a');
+      m.box(0, roofY + 0.05, roofZ + 0.31, 0.14, 0.12, 0.02, '#ff3b6b', true);
+    } else if (look.roof === 'siren') {
+      m.box(0, roofY, roofZ, 0.85, 0.1, 0.25, '#444444');
+      m.box(-0.22, roofY + 0.1, roofZ, 0.32, 0.2, 0.22, '#ff3030', true);
+      m.box(0.22, roofY + 0.1, roofZ, 0.32, 0.2, 0.22, '#3d8bff', true);
+    }
+    // もよう（車の横）
+    if (look.decal === 'star') {
+      for (const sx of [-1, 1]) {
+        const x = sx * (half + 0.006);
+        const y = look.body === 'bus' ? 0.45 : 0.3, z = look.body === 'truck' ? 0.5 : 0;
+        m.box(x, y, z, 0.02, 0.14, 0.42, '#ffd54a', true);
+        m.box(x, y - 0.12, z, 0.02, 0.38, 0.14, '#ffd54a', true);
+      }
+    } else if (look.decal === 'fire') {
+      for (const sx of [-1, 1]) {
+        const x = sx * (half + 0.006);
+        const y = look.body === 'bus' ? 0.25 : 0.22;
+        [['#ffd54a', 0.1], ['#ff9f43', 0.2], ['#ff5a4f', 0.3], ['#ff9f43', 0.18], ['#ffd54a', 0.1]].forEach(([c, h], i) => {
+          m.box(x, y, -0.6 + i * 0.18, 0.02, h, 0.16, c, true);
+        });
+      }
+    }
   }
 
   class Voxel3D {
@@ -868,20 +943,85 @@ window.KG = window.KG || {};
 
     updateCar() {
       const d = this.d;
-      const color = (KG.CAR_COLORS.find(c => c.id === KG.state.carColor) || KG.CAR_COLORS[0]).color;
-      if (color !== this.carColor) {
+      const look = KG.carLook();
+      const key = JSON.stringify(look);
+      if (key !== this.carKey) {
         if (this.car) this.scene.remove(this.car);
         const m = new ModelBuilder();
-        carModel(m, color);
+        carModel(m, look);
         this.car = m.build(this.mats);
         this.scene.add(this.car);
-        this.carColor = color;
+        this.carKey = key;
       }
       const bounce = d.shake ? Math.abs(Math.sin(d.clock * 14)) * 0.03 * (d.speedMul || 0) : 0;
       this.car.position.set(d.camX, bounce, -1.0);
       this.car.rotation.set(0, -d.carTilt * 0.35, d.carTilt * 0.06);
     }
   }
+
+  // 車庫やアイテム画面で、車をくるくる回して見せる
+  class CarPreview {
+    constructor() {
+      this.canvas = document.createElement('canvas');
+      this.canvas.className = 'car-preview';
+      this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, alpha: true, antialias: true });
+      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      this.scene = new THREE.Scene();
+      this.camera = new THREE.PerspectiveCamera(32, 1, 0.1, 50);
+      this.camera.position.set(3.4, 2.4, 4.4);
+      this.camera.lookAt(0, 0.45, 0);
+      const sun = new THREE.DirectionalLight('#ffffff', 2.2);
+      sun.position.set(-3, 6, 4);
+      this.scene.add(new THREE.HemisphereLight('#ffffff', '#6b7f5a', 1.8), sun);
+      this.mats = { lit: new THREE.MeshLambertMaterial({ vertexColors: true }), glow: new THREE.MeshBasicMaterial({ vertexColors: true }) };
+      // 草ブロックの台
+      const m = new ModelBuilder();
+      for (let x = -1; x <= 1; x++) for (let z = -1; z <= 1; z++) {
+        const odd = Math.abs(x + z) % 2;
+        m.box(x * 1.1, -0.55, z * 1.1, 1.1, 0.4, 1.1, odd ? '#8b5a2b' : '#7d5126');
+        m.box(x * 1.1, -0.15, z * 1.1, 1.1, 0.15, 1.1, odd ? '#62b443' : '#58a63c');
+      }
+      this.spin = new THREE.Group();
+      this.spin.add(m.build(this.mats));
+      this.scene.add(this.spin);
+      this.key = '';
+      this.angle = 0.6;
+      this.tick = this.tick.bind(this);
+    }
+    mount(el) {
+      el.appendChild(this.canvas);
+      const r = el.getBoundingClientRect();
+      this.renderer.setSize(Math.max(1, r.width), Math.max(1, r.height), false);
+      this.camera.aspect = r.width / Math.max(1, r.height);
+      this.camera.updateProjectionMatrix();
+      if (!this.running) { this.running = true; requestAnimationFrame(this.tick); }
+    }
+    setLook(look) {
+      const key = JSON.stringify(look);
+      if (key === this.key) return;
+      this.key = key;
+      if (this.car) this.spin.remove(this.car);
+      const m = new ModelBuilder();
+      carModel(m, look);
+      this.car = m.build(this.mats);
+      this.spin.add(this.car);
+    }
+    tick() {
+      // 画面から見えなくなったら止める
+      if (!this.canvas.isConnected || !this.canvas.offsetParent) { this.running = false; return; }
+      this.angle += 0.012;
+      this.spin.rotation.y = this.angle;
+      this.renderer.render(this.scene, this.camera);
+      requestAnimationFrame(this.tick);
+    }
+  }
+  KG.getCarPreview = function () {
+    if (!window.THREE) return null;
+    if (KG.carPreview === undefined) {
+      try { KG.carPreview = new CarPreview(); } catch (e) { console.warn('preview', e); KG.carPreview = null; }
+    }
+    return KG.carPreview;
+  };
 
   // WebGLが使えて、Three.js が読みこめているときだけ使う
   KG.get3D = function (canvas) {

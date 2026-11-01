@@ -59,11 +59,91 @@ KG.buildData = function () {
 };
 
 // 学年を切りかえる。地図・図鑑・問題の選び方は、この学年の字が対象になる
+// 保護者が「ドリルの順番」を入れているときは、その順番でステージを作る
 KG.setGrade = function (g) {
   g = Math.max(1, Math.min(6, +g || 2));
   KG.grade = g;
-  KG.courses = KG.coursesByGrade[g];
   KG.allChars = KG.charsByGrade[g];
+  const order = KG.state && KG.state.parent && KG.state.parent.drillOrder && KG.state.parent.drillOrder[g];
+  if (order && order.length) {
+    KG.courses = KG.coursesFromDrill(g, order);
+    KG.stagePrefix = `g${g}d`;
+  } else {
+    KG.courses = KG.coursesByGrade[g];
+    KG.stagePrefix = `g${g}`;
+  }
+};
+
+// ドリルの「回」をステージにする。回の順に、まち・うみ・やまの3コースへ分ける
+// order: [{ name: '1 てんき', chars: ['天', '気', ...] }, ...]
+KG.coursesFromDrill = function (g, order) {
+  const units = [];
+  const used = new Set();
+  for (const u of order) {
+    const cs = u.chars.filter(c => KG.kanji[c] && !used.has(c));
+    cs.forEach(c => used.add(c));
+    // 1つの回に字が多いときは、12字ずつに分ける
+    for (let i = 0; i < cs.length; i += 12) units.push({ name: u.name + (cs.length > 12 ? `（${i / 12 + 1}）` : ''), chars: cs.slice(i, i + 12) });
+  }
+  // ドリルに入っていない、この学年の字は「のこりの字」として最後に
+  const rest = KG.charsByGrade[g].filter(c => !used.has(c));
+  for (let i = 0; i < rest.length; i += 9) units.push({ name: 'のこりの字', chars: rest.slice(i, i + 9) });
+  const a = Math.ceil(units.length / 3), b = Math.ceil((units.length - a) / 2);
+  const parts = [units.slice(0, a), units.slice(a, a + b), units.slice(a + b)];
+  return KG.COURSE_DEFS.map((def, i) => ({
+    ...def, grade: g, drill: true,
+    chars: parts[i].flatMap(u => u.chars),
+    stages: parts[i].map(u => u.chars),
+    stageNames: parts[i].map(u => u.name),
+  }));
+};
+
+// ドリルの順番の入力を読む。1行が1回。「回の名前：字字字」または「字字字」
+KG.parseDrillOrder = function (text, g) {
+  const order = [], unknown = [], other = [];
+  text.split(/\r?\n/).forEach((line, i) => {
+    line = line.trim();
+    if (!line) return;
+    let name = '', body = line;
+    const m = line.match(/^(.+?)[:：]\s*(.*)$/);
+    if (m) { name = m[1].trim(); body = m[2]; }
+    const chars = [];
+    for (const ch of body) {
+      if (!/[\u4e00-\u9fff]/.test(ch)) continue;
+      if (!KG.kanji[ch]) { unknown.push(ch); continue; }
+      if (KG.kanji[ch].grade !== g) other.push(ch);
+      chars.push(ch);
+    }
+    if (chars.length) order.push({ name: name || `${order.length + 1}かい`, chars });
+  });
+  return { order, unknown: [...new Set(unknown)], other: [...new Set(other)] };
+};
+
+// ドリルの例文の入力を読む。1行が1問。「字｜文｜正しい読み｜まちがいの読み」
+KG.parseDrillExamples = function (text) {
+  const qs = {}, errors = [];
+  text.split(/\r?\n/).forEach((line, i) => {
+    line = line.trim();
+    if (!line) return;
+    const f = line.split(/[|｜]/).map(x => x.trim());
+    const [ch, sentence, ok, ng] = f;
+    if (f.length < 4 || !ch || !sentence || !ok || !ng) { errors.push(`${i + 1}行め：「字｜文｜正しい読み｜まちがいの読み」の形にしてください`); return; }
+    if (!KG.kanji[ch]) { errors.push(`${i + 1}行め：「${ch}」は小学校で習う字ではありません`); return; }
+    if (!sentence.includes(ch)) { errors.push(`${i + 1}行め：文の中に「${ch}」がありません`); return; }
+    if (ok === ng) { errors.push(`${i + 1}行め：正しい読みと まちがいの読みが同じです`); return; }
+    (qs[ch] = qs[ch] || []).push({ sentence, ok, ng });
+  });
+  return { qs, errors };
+};
+
+// 保護者が入れた例文を、問題の形にする（読みの問題）
+KG.drillQuestions = function (ch) {
+  const list = KG.state && KG.state.parent && KG.state.parent.drillExamples && KG.state.parent.drillExamples[ch];
+  if (!list) return [];
+  return list.map((e, i) => ({
+    id: `${ch}-U${i}`, kanji: ch, grade: KG.kanji[ch].grade, type: 'reading', custom: true,
+    text: e.sentence.replace(ch, `{${ch}}`), correct: e.ok, wrong: e.ng, difficulty: 2,
+  }));
 };
 
 KG.buildData();

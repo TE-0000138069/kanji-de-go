@@ -72,34 +72,66 @@ const renderers = {
 
   map() {
     $('#mapTitle').textContent = `ちず（${KG.grade}ねんせいの かんじ）`;
+    const cleared = c => c.stages.filter((_, i) => (KG.state.stages[KG.stageId(c.id, i)] || {}).stars >= 1).length;
+    // コースのタブ：どこまで進んだかも見せる
     const tabs = $('#courseTabs');
-    tabs.innerHTML = KG.courses.map(c => `<button data-c="${c.id}" class="${c.id === ui.course ? 'on' : ''}">${c.emoji} ${c.name}</button>`).join('');
+    tabs.innerHTML = KG.courses.map(c => {
+      const n = cleared(c), all = n === c.stages.length;
+      return `<button data-c="${c.id}" class="${c.id === ui.course ? 'on' : ''}">${c.emoji} ${c.name} <small>${all ? '★クリア！' : `${n}/${c.stages.length}`}</small></button>`;
+    }).join('');
     tabs.querySelectorAll('button').forEach(b => (b.onclick = () => { ui.course = b.dataset.c; renderers.map(); }));
-    const course = KG.courses.find(c => c.id === ui.course);
-    let html = '';
+    const course = KG.courses.find(c => c.id === ui.course) || KG.courses[0];
+
+    // ステージの記録
+    const recs = course.stages.map((_, i) => KG.state.stages[KG.stageId(course.id, i)] || { stars: 0 });
+    let current = recs.findIndex(r => !(r.stars >= 1));
+    if (current < 0) current = course.stages.length; // ぜんぶクリア → 車はにがてトンネルへ
+    const stars = recs.reduce((a, r) => a + (r.stars || 0), 0);
+    const done = cleared(course);
+    const pct = Math.round((done / course.stages.length) * 100);
+    const gradeStages = KG.courses.reduce((a, c) => a + c.stages.length, 0);
+    const gradeDone = KG.courses.reduce((a, c) => a + cleared(c), 0);
+    $('#mapProgress').innerHTML = `
+      <div class="mp-row"><b>${course.emoji} ${course.name}コース</b> クリア ${done} / ${course.stages.length}
+        <span class="mp-bar"><i style="width:${pct}%"></i></span> <i class="ico ico-star"></i> ${stars} / ${course.stages.length * 3}</div>
+      <div class="mp-row small">${KG.grade}ねんせい ぜんぶで ${gradeDone} / ${gradeStages} ステージ${gradeDone === gradeStages ? '　🏆 コンプリート！' : ''}</div>`;
+
+    // おうちの人コース
     const custom = KG.state.parent.customKanji.filter(c => KG.kanji[c]);
-    if (custom.length) {
-      html += `<button class="stage custom" data-kind="custom"><span class="num"><i class="ico ico-house"></i></span>おうちの人<span class="chars">${esc(custom.slice(0, 6).join(''))}${custom.length > 6 ? '…' : ''}</span></button>`;
-    }
-    course.stages.forEach((chars, i) => {
-      const open = KG.isStageOpen(course.id, i);
-      const rec = KG.state.stages[KG.stageId(course.id, i)];
-      html += `<button class="stage ${open ? '' : 'locked'}" data-kind="normal" data-i="${i}" ${open ? '' : 'disabled'}>
-        <span class="num">${open ? i + 1 : '<i class="ico ico-lock"></i>'}</span>
-        <span class="chars">${open ? esc(chars.join('')) : ''}</span>
-        <span class="st">${Array.from({ length: 3 }, (_, j) => `<i class="ico ico-star ${rec && j < rec.stars ? '' : 'off'}"></i>`).join('')}</span></button>`;
-    });
-    const weakN = KG.allChars.filter(KG.isWeak).length;
-    html += `<button class="stage boss" data-kind="weak"><span class="num">🌀</span>にがてトンネル<span class="chars">にがてな字 ${weakN}こ</span></button>`;
-    $('#mapBody').innerHTML = html;
-    $$('#mapBody .stage').forEach(b => {
-      b.onclick = () => {
-        const kind = b.dataset.kind;
-        if (kind === 'normal') startDrive({ kind, id: KG.stageId(course.id, +b.dataset.i), idx: +b.dataset.i, course, chars: course.stages[+b.dataset.i] });
-        else if (kind === 'weak') startDrive({ kind, id: `${course.id}-boss`, course, chars: [] });
-        else startDrive({ kind, id: 'custom', course, chars: custom });
+    $('#mapExtra').innerHTML = custom.length ? `<button class="btn small" id="customGo"><i class="ico ico-house"></i> おうちの人コース（${esc(custom.slice(0, 5).join(''))}${custom.length > 5 ? '…' : ''}）</button>` : '';
+    if (custom.length) $('#customGo').onclick = () => startDrive({ kind: 'custom', id: 'custom', course, chars: custom });
+
+    // 地図
+    const starsHtml = n => Array.from({ length: 3 }, (_, j) => `<i class="ico ico-star ${j < n ? '' : 'off'}"></i>`).join('');
+    const nodes = course.stages.map((chars, i) => {
+      const st = i < current ? 'cleared' : i === current ? 'current' : 'locked';
+      const label = course.stageNames ? course.stageNames[i] : chars.join('');
+      return {
+        cls: st,
+        disabled: st === 'locked',
+        stars: recs[i].stars || 0,
+        html: st === 'locked'
+          ? `<span class="nn"><i class="ico ico-lock"></i></span><span class="nl">？？？</span>`
+          : `${st === 'current' ? '<span class="next">NEXT!</span>' : ''}<span class="nn">${i + 1}</span><span class="nl">${esc(label)}</span><span class="ns">${starsHtml(recs[i].stars || 0)}</span>`,
+        onPick: () => startDrive({ kind: 'normal', id: KG.stageId(course.id, i), idx: i, course, chars }),
       };
     });
+    const weakN = KG.allChars.filter(KG.isWeak).length;
+    nodes.push({
+      boss: true, cls: 'boss',
+      html: `<span class="nn">🌀</span><span class="nl">にがてトンネル</span><span class="ns small">にがて ${weakN}こ</span>`,
+      onPick: () => startDrive({ kind: 'weak', id: `${course.id}-boss`, course, chars: [] }),
+    });
+    // 前に見たときより進んでいたら、車が走る演出
+    const key = KG.stagePrefix + '-' + course.id;
+    const from = KG.state.mapSeen[key];
+    const celebrate = () => {
+      KG.audio.comboFanfare(5);
+      toast(current >= course.stages.length ? `${course.name}コース クリア！ おめでとう！` : 'あたらしい ステージが ひらいたよ！');
+    };
+    requestAnimationFrame(() => KG.MapView.render({ world: $('#mapWorld'), canvas: $('#mapCanvas'), course: course.id, nodes, current, from: from == null ? current : from, celebrate }));
+    KG.state.mapSeen[key] = current;
+    KG.save();
   },
 
   result(data) {
@@ -142,6 +174,8 @@ const renderers = {
     $('#stampMsg').textContent = fresh ? `スタンプ ゲット！ ぜんぶで ${n}こ` : `あつめた スタンプ：${n}こ`;
     if (fresh) KG.audio.stamp();
     $('#stampToMap').hidden = !fresh;
+    renderNextReward($('#stampNext'));
+    if (KG.newRewards().length) setTimeout(showReward, fresh ? 1100 : 300);
   },
 
   zukan() {
@@ -165,14 +199,36 @@ const renderers = {
   },
 
   garage() {
-    const total = KG.totalStars();
-    $('#garageStars').textContent = `⭐ ${total}`;
-    $('#garageList').innerHTML = KG.CAR_COLORS.map(c => {
-      const locked = total < c.stars;
-      return `<button class="garage-item ${KG.state.carColor === c.id ? 'sel' : ''} ${locked ? 'locked' : ''}" data-id="${c.id}" ${locked ? 'disabled' : ''}>
-        <span class="sw" style="background:${c.color}"></span>${c.name}<small>${locked ? `⭐${c.stars}で ひらく` : KG.state.carColor === c.id ? 'のっている' : ''}</small></button>`;
-    }).join('');
-    $$('#garageList .garage-item').forEach(b => (b.onclick = () => { KG.state.carColor = b.dataset.id; KG.save(); renderers.garage(); }));
+    const total = KG.totalStars(), stamps = KG.state.stamps.length;
+    $('#garageStars').innerHTML = `<i class="ico ico-star"></i> ${total}　<i class="ico ico-fuel"></i> ${stamps}`;
+    showPreview($('#garagePreview'), KG.carLook());
+    renderNextReward($('#garageNext'));
+    ui.garageSlot = ui.garageSlot || 'paint';
+    $('#garageTabs').innerHTML = KG.CAR_SLOTS.map(s => `<button data-s="${s.id}" class="${s.id === ui.garageSlot ? 'on' : ''}">${s.name}</button>`).join('');
+    $$('#garageTabs button').forEach(b => (b.onclick = () => { ui.garageSlot = b.dataset.s; renderers.garage(); }));
+    const parts = KG.carLook();
+    let items = [];
+    if (ui.garageSlot === 'paint') {
+      items = KG.CAR_COLORS.map(c => ({
+        key: 'c:' + c.id, name: c.name, html: `<span class="sw" style="background:${c.color}"></span>`,
+        locked: total < c.stars, lockText: `<i class="ico ico-star"></i>${c.stars}で ひらく`,
+        on: parts.paint === 'color' && KG.state.carColor === c.id,
+        pick: () => { KG.state.carColor = c.id; KG.state.carParts.paint = 'color'; },
+      }));
+    } else {
+      const none = { body: 'ふつうの くるま', wheel: 'ふつうの タイヤ', roof: 'なし', decal: 'なし' }[ui.garageSlot];
+      items.push({ key: 'none', name: none, html: ui.garageSlot === 'body' ? '<i class="ico ico-car"></i>' : '<span class="none">－</span>', on: parts[ui.garageSlot] === KG.CAR_DEFAULT[ui.garageSlot], pick: () => { KG.state.carParts[ui.garageSlot] = KG.CAR_DEFAULT[ui.garageSlot]; } });
+    }
+    for (const it of KG.CAR_ITEMS.filter(x => x.slot === ui.garageSlot)) {
+      items.push({
+        key: it.id, name: it.name, html: `<i class="ico ico-${it.ico}"></i>`,
+        locked: !KG.itemOpen(it), lockText: `<i class="ico ico-fuel"></i>あと ${it.need - stamps}こ`,
+        on: parts[it.slot] === it.id, pick: () => { KG.state.carParts[it.slot] = it.id; },
+      });
+    }
+    $('#garageList').innerHTML = items.map((it, i) => `<button class="garage-item ${it.on ? 'sel' : ''} ${it.locked ? 'locked' : ''}" data-i="${i}" ${it.locked ? 'disabled' : ''}>
+      ${it.html}${esc(it.name)}<small>${it.locked ? it.lockText : it.on ? 'つけている' : ''}</small></button>`).join('');
+    $$('#garageList .garage-item').forEach(b => (b.onclick = () => { items[+b.dataset.i].pick(); KG.save(); KG.audio.select('R'); renderers.garage(); }));
   },
 
   settings() {
@@ -250,6 +306,48 @@ const renderers = {
   },
 };
 
+window.addEventListener('resize', () => {
+  if (ui.current !== 'map') return;
+  clearTimeout(ui.mapResize);
+  ui.mapResize = setTimeout(() => renderers.map(), 200);
+});
+
+// ---------------- 車のアイテム ----------------
+// 回る車の表示（3Dが使えないときは、文字だけ）
+function showPreview(box, look) {
+  const pv = KG.getCarPreview && KG.getCarPreview();
+  if (!pv) { box.innerHTML = '<div class="no3d">くるま</div>'; return; }
+  pv.setLook(look);
+  pv.mount(box);
+}
+function renderNextReward(el) {
+  const it = KG.nextReward(), n = KG.state.stamps.length;
+  if (!it) { el.innerHTML = '<i class="ico ico-crown"></i> アイテムを ぜんぶ あつめたよ！'; return; }
+  const prev = KG.CAR_ITEMS.filter(x => x.need <= n).reduce((a, x) => Math.max(a, x.need), 0);
+  const pct = Math.round(((n - prev) / (it.need - prev)) * 100);
+  el.innerHTML = `つぎ：<i class="ico ico-${it.ico}"></i>${esc(it.name)} あと ${it.need - n}こ` + (el.classList.contains('garage-next') ? `<span class="bar"><i style="width:${pct}%"></i></span>` : '');
+}
+// 「アイテム ゲット！」をひとつずつ見せる
+function showReward() {
+  const it = KG.newRewards()[0];
+  if (!it) return;
+  const modal = $('#rewardModal');
+  modal.hidden = false;
+  $('#rewardName').innerHTML = `<i class="ico ico-${it.ico}"></i>${esc(it.name)}`;
+  showPreview($('#rewardPreview'), KG.carLook({ [it.slot]: it.id }));
+  KG.audio.goal();
+  const done = equip => {
+    if (equip) KG.state.carParts[it.slot] = it.id;
+    KG.state.rewardsSeen.push(it.id);
+    KG.save();
+    modal.hidden = true;
+    if (KG.newRewards().length) setTimeout(showReward, 300);
+    else if (equip) toast('くるまが かわったよ！ ドライブで みてみよう');
+  };
+  $('#rewardEquip').onclick = () => done(true);
+  $('#rewardLater').onclick = () => done(false);
+}
+
 // ---------------- 保護者メニュー ----------------
 const parentTabs = {
   report() {
@@ -322,6 +420,65 @@ const parentTabs = {
     }));
     $$('#customGrades button').forEach(b => (b.onclick = () => { ui.customGrade = +b.dataset.g; parentTabs.custom(); }));
     $('#customClear').onclick = () => { KG.state.parent.customKanji = []; KG.save(); parentTabs.custom(); };
+  },
+
+  drill() {
+    ui.drillGrade = ui.drillGrade || KG.grade;
+    const g = ui.drillGrade;
+    const order = (KG.state.parent.drillOrder || {})[g] || [];
+    const orderText = order.map(u => `${u.name}：${u.chars.join('')}`).join('\n');
+    const ex = KG.state.parent.drillExamples || {};
+    const exText = Object.entries(ex).filter(([c]) => KG.kanji[c] && KG.kanji[c].grade === g)
+      .flatMap(([c, list]) => list.map(e => `${c}｜${e.sentence}｜${e.ok}｜${e.ng}`)).join('\n');
+    $('#parentBody').innerHTML = `
+      <div class="card"><h3>ドリルに合わせる</h3>
+        <p>お子さんがお使いの漢字ドリルの順番や例文に合わせられます。ドリルを見ながら入力してください。
+        入力した内容は、このiPadの中だけに保存されます。</p>
+        <div class="tabs" id="drillGrades">${KG.GRADES.map(x => `<button data-g="${x}" class="${x === g ? 'on' : ''}">${x}年生${x === KG.grade ? '（いまの学年）' : ''}</button>`).join('')}</div>
+      </div>
+      <div class="card"><h3>1. ドリルの順番（${g}年生）</h3>
+        <p>1行に1回分。「回の名前：その回の字」の形で書きます（回の名前は省略できます）。地図のステージが、この順番・このまとまりになります。
+        入力しなかった字は「のこりの字」として最後のステージに入ります。</p>
+        <textarea id="drillOrder" rows="10" placeholder="1 てんきの はなし：天気雨雪雲\n2 あさの じかん：朝昼夜時間\n…">${esc(orderText)}</textarea>
+        <div class="prow"><button class="btn small" id="drillOrderSave">順番を保存する</button><button class="btn small danger" id="drillOrderClear">順番を消す（もとの順番にもどす）</button></div>
+        <div id="drillOrderMsg" class="drill-msg"></div>
+      </div>
+      <div class="card"><h3>2. ドリルの例文（読みの問題）</h3>
+        <p>1行に1問。「字｜文｜正しい読み｜まちがいの読み」の形で書きます。ドライブでは、ここに入れた例文が優先して出題されます。</p>
+        <p class="note">例：<code>海｜海で およぐ｜うみ｜かい</code>　（区切りは「｜」か「|」）</p>
+        <textarea id="drillEx" rows="8" placeholder="海｜海で およぐ｜うみ｜かい">${esc(exText)}</textarea>
+        <div class="prow"><button class="btn small" id="drillExSave">例文を保存する</button></div>
+        <div id="drillExMsg" class="drill-msg"></div>
+      </div>`;
+    $$('#drillGrades button').forEach(b => (b.onclick = () => { ui.drillGrade = +b.dataset.g; parentTabs.drill(); }));
+    const reGrade = () => { KG.setGrade(KG.grade); };
+    $('#drillOrderSave').onclick = () => {
+      const r = KG.parseDrillOrder($('#drillOrder').value, g);
+      KG.state.parent.drillOrder = KG.state.parent.drillOrder || {};
+      if (r.order.length) KG.state.parent.drillOrder[g] = r.order; else delete KG.state.parent.drillOrder[g];
+      KG.save(); reGrade();
+      const n = r.order.reduce((a, u) => a + u.chars.length, 0);
+      const rest = KG.charsByGrade[g].filter(c => !r.order.some(u => u.chars.includes(c))).length;
+      $('#drillOrderMsg').innerHTML = `<b>保存しました：${r.order.length}回・${n}字</b>（入っていない${g}年生の字：${rest}字）` +
+        (r.other.length ? `<br>ほかの学年の字：${esc(r.other.join(''))}（そのまま出題します）` : '') +
+        (r.unknown.length ? `<br>小学校で習わない字のため外しました：${esc(r.unknown.join(''))}` : '');
+    };
+    $('#drillOrderClear').onclick = () => {
+      if (!confirm(`${g}年生のドリルの順番を消して、もとの順番にもどしますか？`)) return;
+      if (KG.state.parent.drillOrder) delete KG.state.parent.drillOrder[g];
+      KG.save(); reGrade(); parentTabs.drill();
+    };
+    $('#drillExSave').onclick = () => {
+      const r = KG.parseDrillExamples($('#drillEx').value);
+      const all = KG.state.parent.drillExamples || {};
+      // この学年の分を入れかえる
+      for (const c of Object.keys(all)) if (KG.kanji[c] && KG.kanji[c].grade === g) delete all[c];
+      Object.assign(all, r.qs);
+      KG.state.parent.drillExamples = all;
+      KG.save();
+      const n = Object.values(r.qs).reduce((a, l) => a + l.length, 0);
+      $('#drillExMsg').innerHTML = `<b>保存しました：${n}問</b>` + (r.errors.length ? '<br>' + r.errors.map(esc).join('<br>') : '');
+    };
   },
 
   psettings() {

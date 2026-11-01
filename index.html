@@ -63,7 +63,11 @@
   <section id="scr-map" class="screen">
     <div class="topbar"><button class="btn back" data-go="home">◀ もどる</button><h2 id="mapTitle">ちず</h2><span></span></div>
     <div class="tabs" id="courseTabs"></div>
-    <div class="map" id="mapBody"></div>
+    <div class="map-head">
+      <div id="mapProgress" class="map-progress"></div>
+      <div id="mapExtra" class="map-extra"></div>
+    </div>
+    <div id="mapWorld" class="map-world"><canvas id="mapCanvas"></canvas></div>
   </section>
 
   <!-- ドライブ -->
@@ -130,6 +134,7 @@
     <div class="topbar"><button class="btn back" data-go="home">◀ もどる</button><h2><i class="ico ico-fuel"></i> ガソリンスタンド</h2><span></span></div>
     <div id="stampMsg" class="stamp-msg"></div>
     <div id="stampCard" class="stamp-card"></div>
+    <div id="stampNext" class="stamp-next"></div>
     <button class="btn big" data-go="map" id="stampToMap">ちずへ</button>
   </section>
 
@@ -142,8 +147,17 @@
 
   <!-- 車の色 -->
   <section id="scr-garage" class="screen">
-    <div class="topbar"><button class="btn back" data-go="home">◀ もどる</button><h2><i class="ico ico-car"></i> くるまの いろ</h2><span id="garageStars"></span></div>
-    <div id="garageList" class="garage-list"></div>
+    <div class="topbar"><button class="btn back" data-go="home">◀ もどる</button><h2><i class="ico ico-car"></i> くるまの ガレージ</h2><span id="garageStars"></span></div>
+    <div class="garage-wrap">
+      <div class="garage-left">
+        <div id="garagePreview" class="preview-box"></div>
+        <div id="garageNext" class="garage-next"></div>
+      </div>
+      <div class="garage-right">
+        <div class="tabs" id="garageTabs"></div>
+        <div id="garageList" class="garage-list"></div>
+      </div>
+    </div>
   </section>
 
   <!-- 設定（子ども） -->
@@ -166,6 +180,7 @@
     <div class="tabs" id="parentTabs">
       <button data-tab="report" class="on">学習レポート</button>
       <button data-tab="custom">出題する字を選ぶ</button>
+      <button data-tab="drill">ドリルに合わせる</button>
       <button data-tab="psettings">設定</button>
     </div>
     <div id="parentBody" class="parent-body"></div>
@@ -176,6 +191,17 @@
       <h2>🚗💤 きょうは ここまで！</h2>
       <p>くるまは しゃこで おやすみ。また あした あそぼうね。</p>
       <button class="btn" data-go="lock">おうちの人</button>
+    </div>
+  </div>
+  <div id="rewardModal" class="modal" hidden>
+    <div class="modal-box reward-box">
+      <h2>アイテム ゲット！</h2>
+      <div id="rewardPreview" class="preview-box"></div>
+      <p id="rewardName" class="reward-name"></p>
+      <div class="row-btns">
+        <button class="btn big" id="rewardEquip">くるまに つける</button>
+        <button class="btn" id="rewardLater">あとで</button>
+      </div>
     </div>
   </div>
   <div id="toast" class="toast"></div>
@@ -196,6 +222,7 @@
 <script src="js/drive.js"></script>
 <script src="js/pitin.js"></script>
 <script src="js/theme.js"></script>
+<script src="js/mapview.js"></script>
 <script src="js/ui.js"></script>
 </body>
 </html>

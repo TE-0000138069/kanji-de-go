@@ -13,6 +13,26 @@ KG.CAR_COLORS = [
   { id: 'gold', name: 'きんいろ', color: '#e0a800', stars: 60 },
 ];
 
+// スタンプがたまるともらえる、車のアイテム
+KG.CAR_ITEMS = [
+  { id: 'star', slot: 'decal', name: 'ほしの ステッカー', need: 3, ico: 'star' },
+  { id: 'goldwheel', slot: 'wheel', name: 'きんの タイヤ', need: 6, ico: 'wheel' },
+  { id: 'flag', slot: 'roof', name: 'はた', need: 10, ico: 'flag' },
+  { id: 'truck', slot: 'body', name: 'トラック', need: 15, ico: 'truck' },
+  { id: 'crown', slot: 'roof', name: 'かんむり', need: 20, ico: 'crown' },
+  { id: 'fire', slot: 'decal', name: 'ほのおの もよう', need: 25, ico: 'fire' },
+  { id: 'siren', slot: 'roof', name: 'サイレン', need: 30, ico: 'siren' },
+  { id: 'kart', slot: 'body', name: 'カート', need: 40, ico: 'kart' },
+  { id: 'rainbow', slot: 'paint', name: 'にじいろ ペンキ', need: 50, ico: 'rainbow' },
+  { id: 'bus', slot: 'body', name: 'バス', need: 60, ico: 'bus' },
+];
+KG.CAR_SLOTS = [
+  { id: 'paint', name: 'いろ' }, { id: 'body', name: 'かたち' }, { id: 'wheel', name: 'タイヤ' },
+  { id: 'roof', name: 'やね' }, { id: 'decal', name: 'もよう' },
+];
+// 何もつけていないとき
+KG.CAR_DEFAULT = { body: 'normal', wheel: 'normal', roof: 'none', decal: 'none', paint: 'color' };
+
 function defaultState() {
   return {
     profile: null, // { nickname, grade }
@@ -20,12 +40,15 @@ function defaultState() {
       control: 'tap', oneHand: false, hand: 'right', slow: false,
       se: 0.7, bgm: 0.5, graphics: '3d', voice: true, textSize: 1, shake: true, bgSpeed: 1,
     },
-    parent: { timeLimit: 0, breakEvery: 20, customKanji: [] },
+    parent: { timeLimit: 0, breakEvery: 20, customKanji: [], drillOrder: {}, drillExamples: {} },
     progress: {},  // 字 -> { read: {...}, write: {...} }
     attempts: [],  // 1問ごとの記録
     stages: {},    // ステージID -> { stars, best }
     stamps: [],    // スタンプをもらった日の一覧（ドライブ1回ごと）
     carColor: 'red',
+    carParts: { ...KG.CAR_DEFAULT },
+    rewardsSeen: [], // 「アイテム ゲット！」を見せたアイテム
+    mapSeen: {},     // 地図で、どのステージまで開いたのを見せたか（新しく開いたときの演出用）
     difficulty: 3,
     recent: [],    // 直近の結果（1=すっきり正解 0=それ以外）
     usage: {},     // 日付 -> 秒
@@ -38,7 +61,7 @@ KG.load = function () {
     if (raw) {
       const s = JSON.parse(raw);
       const d = defaultState();
-      KG.state = { ...d, ...s, settings: { ...d.settings, ...s.settings }, parent: { ...d.parent, ...s.parent } };
+      KG.state = { ...d, ...s, settings: { ...d.settings, ...s.settings }, parent: { ...d.parent, ...s.parent }, carParts: { ...KG.CAR_DEFAULT, ...(s.carParts || {}) } };
       // v0.2までは2年生だけで、ステージIDに学年がなかった
       for (const k of Object.keys(KG.state.stages)) {
         if (/^(machi|umi|yama)-/.test(k)) { KG.state.stages['g2-' + k] = KG.state.stages[k]; delete KG.state.stages[k]; }
@@ -199,14 +222,11 @@ function pickQuestionFor(ch, usedIds) {
   const sk = KG.prog(ch).read;
   const doneToday = sk.todayDay === today ? sk.todayQ : [];
   const target = { 1: 1, 2: 1, 3: 2, 4: 3, 5: 3 }[KG.state.difficulty];
-  const cands = KG.qByKanji[ch].filter(q => !usedIds.has(q.id));
+  const cands = KG.qByKanji[ch].concat(KG.drillQuestions(ch)).filter(q => !usedIds.has(q.id));
   if (!cands.length) return null;
-  // 今日まだ正解していない問題を優先し、難易度が近いものを選ぶ
-  cands.sort((a, b) => {
-    const da = (doneToday.includes(a.id) ? 10 : 0) + Math.abs(a.difficulty - target) + Math.random() * 0.5;
-    const db = (doneToday.includes(b.id) ? 10 : 0) + Math.abs(b.difficulty - target) + Math.random() * 0.5;
-    return da - db;
-  });
+  // 今日まだ正解していない問題を優先し、難易度が近いものを選ぶ。ドリルの例文は少し優先する
+  const score = q => (doneToday.includes(q.id) ? 10 : 0) + Math.abs(q.difficulty - target) + Math.random() * 0.5 - (q.custom ? 0.8 : 0);
+  cands.sort((a, b) => score(a) - score(b));
   return cands[0];
 }
 
@@ -303,7 +323,7 @@ KG.pickPitinChars = function (missed) {
 };
 
 // ---- ステージ ----
-KG.stageId = (courseId, idx) => `g${KG.grade}-${courseId}-${idx}`;
+KG.stageId = (courseId, idx) => `${KG.stagePrefix || 'g' + KG.grade}-${courseId}-${idx}`;
 
 KG.isStageOpen = function (courseId, idx) {
   if (idx === 0) return true;
@@ -313,6 +333,22 @@ KG.isStageOpen = function (courseId, idx) {
 
 KG.totalStars = function () {
   return Object.values(KG.state.stages).reduce((a, s) => a + (s.stars || 0), 0);
+};
+
+// ---- 車のアイテム ----
+KG.itemOpen = it => KG.state.stamps.length >= it.need;
+// まだ「アイテム ゲット！」を見せていない、もらえたアイテム
+KG.newRewards = () => KG.CAR_ITEMS.filter(it => KG.itemOpen(it) && !KG.state.rewardsSeen.includes(it.id));
+KG.nextReward = () => KG.CAR_ITEMS.find(it => !KG.itemOpen(it)) || null;
+// いまの車の見た目（色とアイテム）
+KG.carLook = function (override) {
+  const parts = { ...KG.CAR_DEFAULT, ...KG.state.carParts, ...(override || {}) };
+  for (const slot of ['body', 'wheel', 'roof', 'decal', 'paint']) {
+    const it = KG.CAR_ITEMS.find(x => x.id === parts[slot]);
+    if (it && !KG.itemOpen(it)) parts[slot] = KG.CAR_DEFAULT[slot]; // まだもらっていないものは使えない
+  }
+  const color = parts.paint === 'rainbow' ? 'rainbow' : (KG.CAR_COLORS.find(c => c.id === KG.state.carColor) || KG.CAR_COLORS[0]).color;
+  return { ...parts, color };
 };
 
 // ---- 利用時間 ----
