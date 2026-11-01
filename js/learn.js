@@ -46,6 +46,7 @@ function defaultState() {
     stages: {},    // ステージID -> { stars, best }
     stamps: [],    // スタンプをもらった日の一覧（ドライブ1回ごと）
     carColor: 'red',
+    driveMode: 'read', // 'read'（よみで はしる）／'write'（かきで はしる）
     carParts: { ...KG.CAR_DEFAULT },
     rewardsSeen: [], // 「アイテム ゲット！」を見せたアイテム
     mapSeen: {},     // 地図で、どのステージまで開いたのを見せたか（新しく開いたときの演出用）
@@ -231,10 +232,12 @@ function pickQuestionFor(ch, usedIds) {
 }
 
 // stage: { kind: 'normal'|'weak'|'custom', chars: [...] }
-KG.pickDriveQuestions = function (stage, count = 10) {
+// mode: 'read'（読みで走る）／'write'（書きで走る）。書きのときは「書き」の記録で選ぶ
+KG.pickDriveQuestions = function (stage, count = 10, mode = 'read') {
+  const sk = mode === 'write' ? 'write' : 'read';
   const today = KG.today();
   const prog = c => KG.state.progress[c];
-  const seen = KG.allChars.filter(c => prog(c) && prog(c).read.seen);
+  const seen = KG.allChars.filter(c => prog(c) && (prog(c).read.seen || prog(c)[sk].seen));
   const chosen = [];
   const add = list => {
     for (const c of list) {
@@ -244,20 +247,20 @@ KG.pickDriveQuestions = function (stage, count = 10) {
   };
   // 今日1問だけ正解していて、確認待ちの字
   const pending = seen.filter(c => {
-    const sk = prog(c).read;
-    return sk.todayDay === today && sk.todayQ.length === 1 && sk.lastUpDay !== today;
+    const k = prog(c)[sk];
+    return sk === 'read' && k.todayDay === today && k.todayQ.length === 1 && k.lastUpDay !== today;
   });
-  const due = seen.filter(c => prog(c).read.due && prog(c).read.due <= today)
-    .sort((a, b) => prog(a).read.due.localeCompare(prog(b).read.due));
+  const due = seen.filter(c => prog(c)[sk].due && prog(c)[sk].due <= today)
+    .sort((a, b) => prog(a)[sk].due.localeCompare(prog(b)[sk].due));
   const weak = shuffle(seen.filter(c => KG.isWeak(c)));
 
   if (stage.kind === 'weak') {
     add(weak);
-    add(seen.slice().sort((a, b) => prog(a).read.level - prog(b).read.level));
+    add(seen.slice().sort((a, b) => prog(a)[sk].level - prog(b)[sk].level));
   } else if (stage.kind === 'custom') {
     add(shuffle(stage.chars.slice()));
   } else {
-    const fresh = stage.chars.filter(c => !prog(c) || !prog(c).read.seen);
+    const fresh = stage.chars.filter(c => !prog(c) || !prog(c)[sk].seen);
     add(fresh.slice(0, 3));        // 新しい字 3
     add(weak.slice(0, 2));         // にがて 2
     add(shuffle(pending).slice(0, 3));
@@ -318,6 +321,38 @@ KG.pickPitinChars = function (missed) {
       return !p.write.seen || (p.write.due && p.write.due <= today);
     }).sort((a, b) => KG.state.progress[b].read.level - KG.state.progress[a].read.level);
     list.push(...writeDue);
+  }
+  return list.slice(0, 3);
+};
+
+// 書きの問題の見せ方。書く字を「□」にして、上に読みをつける
+// 例：「[うみ]で およぐ」→ 前「」・字「□」・読み「うみ」・後「で およぐ」
+KG.writePrompt = function (q) {
+  let word, reading, m;
+  if (q.type === 'reading') {
+    m = q.text.match(/\{(.+?)\}/);
+    word = m ? m[1] : q.kanji;
+    reading = q.correct;
+  } else {
+    m = q.text.match(/\[(.+?)\]/);
+    word = q.correct;
+    reading = m ? m[1] : '';
+  }
+  const before = m ? q.text.slice(0, m.index) : '';
+  const after = m ? q.text.slice(m.index + m[0].length) : '';
+  const i = word.indexOf(q.kanji);
+  return { before, after, reading, pre: word.slice(0, i), post: word.slice(i + 1), target: q.kanji };
+};
+
+// 書きで走ったあとのピットイン（読みの練習）で使う字
+KG.pickPitinReadChars = function (missed) {
+  const today = KG.today();
+  const list = [...new Set(missed)];
+  if (list.length < 3) {
+    list.push(...KG.allChars.filter(c => {
+      const p = KG.state.progress[c];
+      return p && p.read.seen && !list.includes(c) && p.read.due && p.read.due <= today;
+    }));
   }
   return list.slice(0, 3);
 };

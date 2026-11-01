@@ -5,6 +5,7 @@ KG.Drive = class {
   // opts: { canvas, course, stageIndex, items: [{ q, side }], hud, onFinish(results, elapsed) }
   constructor(opts) {
     Object.assign(this, opts);
+    this.mode = opts.mode || 'read'; // 'read'：2択で読みを選ぶ　'write'：止まって字を書く
     this.ctx = this.canvas.getContext('2d');
     const st = KG.state.settings;
     // 3D表示（ブロック風）。使えないときや「かるい2D」を選んだときは、今までの2D表示
@@ -93,7 +94,23 @@ KG.Drive = class {
   }
 
   // ---- 入力 ----
-  canSelect() { return this.phase === 'question' && !this.paused; }
+  canSelect() { return this.phase === 'question' && !this.paused && this.mode !== 'write'; }
+
+  // 看板の文字。書きのときは、正しく書けたら「はやいみち」へ進む
+  signText(side) {
+    const it = this.item;
+    if (this.mode === 'write') return side === it.side ? 'はやいみち' : 'まわりみち';
+    return side === it.side ? it.q.correct : it.q.wrong;
+  }
+
+  // 書きの答え（ui.js から呼ばれる）
+  submitWrite(pass) {
+    if (this.phase !== 'question' || this.writeDone) return;
+    this.writeDone = true;
+    this.writePass = pass;
+    const it = this.item;
+    this.selected = pass ? it.side : it.side === 'L' ? 'R' : 'L';
+  }
 
   select(side) {
     if (!this.canSelect() || this.selected === side) return;
@@ -137,7 +154,13 @@ KG.Drive = class {
     let advance = true;
     this.clock += dt;
 
-    if (this.phase === 'question') {
+    if (this.phase === 'question' && this.mode === 'write') {
+      // 書きのとき：分かれ道の手前で止まって、書き終わるのを待つ（待つあいだは時間を数えない）
+      const remain = this.T - this.phaseT;
+      this.waiting = !this.writeDone && remain <= 1.5;
+      if (this.waiting) { advance = false; speedMul = 0; }
+      this.hud.timer(remain / this.T);
+    } else if (this.phase === 'question') {
       const remain = this.T - this.phaseT;
       // ゆっくりモード：選ぶまで、分かれ道の手前で止まって待つ
       // 選んだあとも、さいごに選んでから1.5秒は止まったまま待つ（選び直せるように）
@@ -275,23 +298,36 @@ KG.Drive = class {
     this.lastSelectT = null;
     this.chosen = null;
     this.forkZ = this.DEC_Z + this.SPEED * this.T;
+    this.writeDone = false;
+    this.writePass = null;
     this.setPhase('question', this.T);
     KG.music.setIntensity(1);
     const q = this.item.q;
-    if (q.type === 'reading') KG.audio.speak('よみは どっち？');
+    if (this.mode === 'write') {
+      const w = KG.writePrompt(q);
+      KG.audio.speak(`${w.reading}。 しかくの ところの かんじを かこう`);
+      this.hud.writeStart(this.item);
+    } else if (q.type === 'reading') KG.audio.speak('よみは どっち？');
     else KG.audio.speak(KG.plainText(q) + '。 かんじは どっち？');
   }
 
   decide() {
     const it = this.item;
     const picked = this.selected;
-    const result = !picked ? 'timeout' : picked === it.side ? 'correct' : 'wrong';
-    const respT = this.lastSelectT == null ? this.T : this.lastSelectT;
-    // 迷った：時間の8割以上かかった、または2回以上選び直した（ゆっくりモードでは選び直しだけで判定）
-    const hesitated = result === 'correct' && (this.switchCount >= 2 || (!this.slow && respT >= this.T * 0.8));
-    const pickedText = !picked ? null : picked === it.side ? it.q.correct : it.q.wrong;
-    KG.recordRead(it.q, result, { hesitated, responseMs: respT * 1000, switchCount: this.switchCount, picked: pickedText });
-    this.results.push({ q: it.q, result, hesitated });
+    let result, hesitated = false;
+    if (this.mode === 'write') {
+      result = this.writePass ? 'correct' : 'wrong';
+      KG.recordWrite(it.q.kanji, !!this.writePass);
+      this.hud.writeEnd();
+    } else {
+      result = !picked ? 'timeout' : picked === it.side ? 'correct' : 'wrong';
+      const respT = this.lastSelectT == null ? this.T : this.lastSelectT;
+      // 迷った：時間の8割以上かかった、または2回以上選び直した（ゆっくりモードでは選び直しだけで判定）
+      hesitated = result === 'correct' && (this.switchCount >= 2 || (!this.slow && respT >= this.T * 0.8));
+      const pickedText = !picked ? null : picked === it.side ? it.q.correct : it.q.wrong;
+      KG.recordRead(it.q, result, { hesitated, responseMs: respT * 1000, switchCount: this.switchCount, picked: pickedText });
+    }
+    this.results.push({ q: it.q, result, hesitated, mode: this.mode });
     this.lastResult = result;
     // 時間切れのときは、正解の道へ（遠回りの演出だけする）
     this.chosen = picked || it.side;
@@ -686,7 +722,7 @@ KG.Drive = class {
     ctx.globalAlpha = alpha;
     for (const side of ['L', 'R']) {
       if (this.chosen && side !== this.chosen && this.phase === 'after') continue;
-      const text = side === it.side ? it.q.correct : it.q.wrong;
+      const text = this.signText(side);
       // 看板は、それぞれの道の外がわに立てる（左右の看板が重ならず、柱が道をふさがない）
       const s = side === 'L' ? -1 : 1;
       const cx = this.sx(s * (Math.abs(this.branchCenter(side, z)) + 1.0), p.ux);

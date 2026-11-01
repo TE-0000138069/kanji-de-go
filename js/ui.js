@@ -96,6 +96,17 @@ const renderers = {
         <span class="mp-bar"><i style="width:${pct}%"></i></span> <i class="ico ico-star"></i> ${stars} / ${course.stages.length * 3}</div>
       <div class="mp-row small">${KG.grade}ねんせい ぜんぶで ${gradeDone} / ${gradeStages} ステージ${gradeDone === gradeStages ? '　🏆 コンプリート！' : ''}</div>`;
 
+    // よみで はしる／かきで はしる
+    const mode = KG.state.driveMode === 'write' ? 'write' : 'read';
+    $('#modeSwitch').innerHTML = `<button data-m="read" class="${mode === 'read' ? 'on' : ''}">📖 よみで はしる</button><button data-m="write" class="${mode === 'write' ? 'on' : ''}">✏️ かきで はしる</button>`;
+    $$('#modeSwitch button').forEach(b => (b.onclick = () => {
+      KG.state.driveMode = b.dataset.m;
+      KG.save();
+      KG.audio.select('R');
+      toast(b.dataset.m === 'write' ? '✏️ かきで はしるよ！ わかれみちで かんじを かこう' : '📖 よみで はしるよ！ ただしい みちを えらぼう');
+      renderers.map();
+    }));
+
     // おうちの人コース
     const custom = KG.state.parent.customKanji.filter(c => KG.kanji[c]);
     $('#mapExtra').innerHTML = custom.length ? `<button class="btn small" id="customGo"><i class="ico ico-house"></i> おうちの人コース（${esc(custom.slice(0, 5).join(''))}${custom.length > 5 ? '…' : ''}）</button>` : '';
@@ -135,7 +146,7 @@ const renderers = {
   },
 
   result(data) {
-    const { results, elapsed, starsN, isBest, noMiss } = data;
+    const { results, elapsed, starsN, isBest, noMiss, mode } = data;
     const correct = results.filter(r => r.result === 'correct').length;
     $('#resTitle').textContent = noMiss ? 'ノーミス ゴール！' : 'ゴール！';
     $('#resStars').innerHTML = '<span class="off">★★★</span>';
@@ -156,13 +167,22 @@ const renderers = {
       return `<span>${mark} ${esc(r.q.kanji)}</span>`;
     }).join('');
     const missed = results.filter(r => r.result !== 'correct' || r.hesitated).map(r => r.q.kanji);
-    const pit = KG.pickPitinChars(missed);
-    $('#resNext').textContent = pit.length ? 'ピットインへ ▶' : 'スタンドへ ▶';
-    $('#resNext').onclick = () => (pit.length ? show('pitin', pit) : show('stamp', true));
+    // よみで走ったら書きの練習、かきで走ったら読みの練習
+    const pitMode = mode === 'write' ? 'read' : 'write';
+    const pit = pitMode === 'read' ? KG.pickPitinReadChars(missed) : KG.pickPitinChars(missed);
+    $('#resNext').textContent = pit.length ? (pitMode === 'read' ? 'ピットイン（よみ）へ ▶' : 'ピットイン（かき）へ ▶') : 'スタンドへ ▶';
+    $('#resNext').onclick = () => (pit.length ? show('pitin', pit, pitMode) : show('stamp', true));
   },
 
-  pitin(chars) {
-    new KG.Pitin($('#scr-pitin'), chars, () => show('stamp', true));
+  pitin(chars, pitMode = 'write') {
+    const root = $('#scr-pitin');
+    const read = pitMode === 'read';
+    $('#pitinRead').hidden = !read;
+    root.querySelector('.pitin-body').hidden = read;
+    root.querySelector('.pitin-btns').hidden = read;
+    root.querySelector('.topbar h2').firstChild.textContent = read ? '🔧 ピットイン（よみ） ' : '🔧 ピットイン（かき） ';
+    if (read) new KG.PitinRead(root, chars, () => show('stamp', true));
+    else new KG.Pitin(root, chars, () => show('stamp', true));
   },
 
   stamp(fresh) {
@@ -682,28 +702,33 @@ function startDrive(stage) {
     toast('まず ふつうの ステージを はしってみよう！');
     return;
   }
-  const items = KG.pickDriveQuestions(stage);
+  const mode = KG.state.driveMode === 'write' ? 'write' : 'read';
+  // 書きは1問に時間がかかるので、6問にする
+  const items = KG.pickDriveQuestions(stage, mode === 'write' ? 6 : 10, mode);
   if (!items.length) { toast('もんだいが ありません'); return; }
   if (KG.state.settings.control === 'tilt' && !tiltGranted) requestTilt(); // タップの流れの中で許可をもらう
 
   show('drive');
   KG.music.play(stage.course.id);
-  const hud = makeHud(items);
+  const hud = makeHud(items, mode);
   ui.drive = new KG.Drive({
+    mode,
     canvas: $('#driveCanvas'),
     canvas3d: $('#driveCanvas3d'),
     course: stage.course,
     stageIndex: stage.kind === 'normal' ? stage.idx : Math.floor(Math.random() * 5),
     items,
     hud,
-    onFinish: (results, elapsed) => finishDrive(stage, results, elapsed),
+    onFinish: (results, elapsed) => finishDrive(stage, results, elapsed, mode),
   });
   if (KG.state.settings.control === 'tilt') startTilt(ui.drive);
   const tb = $('#toggleBtn');
   tb.className = 'toggle-btn' + (KG.state.settings.oneHand ? ' on ' + KG.state.settings.hand : '');
 }
 
-function makeHud(items) {
+function makeHud(items, mode = 'read') {
+  const wb = $('#writeBox');
+  wb.hidden = true;
   const prog = $('#progress');
   prog.innerHTML = items.map(() => '<i></i>').join('');
   const dots = prog.querySelectorAll('i');
@@ -715,6 +740,31 @@ function makeHud(items) {
   return {
     // 決定ラインまでの残り時間（1→0）
     timer(frac) { bar.style.transform = `scaleX(${Math.max(0, frac)})`; },
+    // 書く枠を出す
+    writeStart(it) {
+      wb.hidden = false;
+      if (!ui.drivePad) ui.drivePad = new KG.WritePad($('#drivePad'));
+      const pad = ui.drivePad;
+      pad.resize();
+      pad.clear();
+      const target = it.q.kanji;
+      const finish = pass => {
+        pad.reveal = target;
+        pad.locked = true;
+        pad.draw();
+        if (pass) KG.audio.select('R'); else KG.audio.wrong();
+        setTimeout(() => { if (ui.drive) ui.drive.submitWrite(pass); }, pass ? 500 : 1300);
+      };
+      $('#wbClear').onclick = () => { if (!pad.locked) pad.clear(); };
+      $('#wbDont').onclick = () => { if (!pad.locked) finish(false); };
+      $('#wbOk').onclick = () => {
+        if (pad.locked) return;
+        const sc = pad.score(target);
+        if (sc.inkN < 30) { toast('かんじを かいてね'); return; }
+        finish(sc.coverage >= 0.38 && sc.outside <= 0.45);
+      };
+    },
+    writeEnd() { wb.hidden = true; },
     count(text) {
       sm.textContent = text;
       sm.classList.add('on');
@@ -740,6 +790,13 @@ function makeHud(items) {
       if (name === 'cruise') sm.classList.remove('on', 'pop');
       if (name === 'question') {
         const it = d.item, q = it.q;
+        if (mode === 'write') {
+          const w = KG.writePrompt(q);
+          banner.querySelector('.qlabel').textContent = '✏️ かんじで かこう！';
+          banner.querySelector('.qtext').innerHTML = `${esc(w.before)}<ruby>${esc(w.pre)}<span class="wq">□</span>${esc(w.post)}<rt>${esc(w.reading)}</rt></ruby>${esc(w.after)}`;
+          banner.classList.add('on');
+          return;
+        }
         banner.querySelector('.qlabel').textContent = q.type === 'reading' ? 'よみは どっち？' : 'かんじは どっち？';
         banner.querySelector('.qtext').innerHTML = esc(q.text).replace(/\{(.+?)\}/, '<em>$1</em>').replace(/\[(.+?)\]/, '<u>$1</u>');
         cL.querySelector('.ctext').textContent = it.side === 'L' ? q.correct : q.wrong;
@@ -773,14 +830,15 @@ function makeHud(items) {
   };
 }
 
-function finishDrive(stage, results, elapsed) {
+function finishDrive(stage, results, elapsed, mode = 'read') {
   const d = ui.drive;
   d.destroy();
   stopTilt();
   ui.drive = null;
   const correct = results.filter(r => r.result === 'correct').length;
   const noMiss = correct === results.length;
-  const starsN = noMiss ? 3 : correct >= 9 ? 2 : correct >= 7 ? 1 : 0;
+  const rate = correct / Math.max(1, results.length);
+  const starsN = noMiss ? 3 : rate >= 0.9 ? 2 : rate >= 0.66 ? 1 : 0;
   const rec = KG.state.stages[stage.id] || { stars: 0, best: null };
   const isBest = starsN > 0 && (rec.best == null || elapsed < rec.best);
   rec.stars = Math.max(rec.stars, starsN);
@@ -789,7 +847,7 @@ function finishDrive(stage, results, elapsed) {
   KG.state.stamps.push(KG.today());
   KG.adjustDifficulty();
   KG.save();
-  show('result', { results, elapsed, starsN, isBest, noMiss });
+  show('result', { results, elapsed, starsN, isBest, noMiss, mode });
   const be = KG.state.parent.breakEvery;
   if (be && ui.sessionPlay >= be * 60) {
     ui.sessionPlay = 0;
@@ -799,7 +857,7 @@ function finishDrive(stage, results, elapsed) {
 
 // ドライブ中の入力（タップ・キーボード）
 $('#scr-drive').addEventListener('pointerdown', e => {
-  if (!ui.drive || e.target.closest('button')) return;
+  if (!ui.drive || e.target.closest('button') || e.target.closest('#writeBox')) return;
   KG.audio.unlock();
   if (KG.state.settings.control !== 'tap' && KG.state.settings.control !== 'tilt') return;
   ui.drive.select(e.clientX < window.innerWidth / 2 ? 'L' : 'R');

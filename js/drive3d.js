@@ -840,7 +840,7 @@ window.KG = window.KG || {};
         s.g.visible = !hide;
         if (hide) continue;
         const it = d.item;
-        this.drawSign(s, side === it.side ? it.q.correct : it.q.wrong, d.selected === side);
+        this.drawSign(s, d.signText(side), d.selected === side);
         const sg = side === 'L' ? -1 : 1;
         s.g.position.set(sg * (Math.abs(d.branchCenter(side, dist)) + 1.4), 0, -dist);
         const a = Math.max(0, Math.min(1, (dist - 2.5) / 2));

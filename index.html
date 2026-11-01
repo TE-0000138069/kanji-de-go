@@ -65,6 +65,7 @@
     <div class="tabs" id="courseTabs"></div>
     <div class="map-head">
       <div id="mapProgress" class="map-progress"></div>
+      <div id="modeSwitch" class="mode-switch"></div>
       <div id="mapExtra" class="map-extra"></div>
     </div>
     <div id="mapWorld" class="map-world"><canvas id="mapCanvas"></canvas></div>
@@ -88,6 +89,15 @@
       <div id="startMsg" class="start-msg"></div>
       <div id="combo" class="combo"></div>
       <div id="zoneName" class="zone-name"></div>
+      <div id="writeBox" class="write-box" hidden>
+        <div class="wb-title">しかくの ところの かんじを かこう</div>
+        <canvas id="drivePad" class="pad"></canvas>
+        <div class="wb-btns">
+          <button class="btn small" id="wbClear">けす</button>
+          <button class="btn small" id="wbDont">わからない</button>
+          <button class="btn big" id="wbOk">できた！</button>
+        </div>
+      </div>
       <button id="toggleBtn" class="toggle-btn">⇄<small>きりかえ</small></button>
     </div>
     <div id="pauseMenu" class="modal" hidden>
@@ -115,6 +125,13 @@
   <!-- ピットイン -->
   <section id="scr-pitin" class="screen pitin">
     <div class="topbar"><span></span><h2>🔧 ピットイン <small id="pitinCount"></small></h2><button class="btn small" id="pitinSkip">あとで</button></div>
+    <div id="pitinRead" class="pitin-read" hidden>
+      <div class="pr-label">よみは どっち？</div>
+      <div id="prSentence" class="pr-sentence"></div>
+      <div id="prChoices" class="pr-choices"></div>
+      <div id="prMsg" class="pitin-msg"></div>
+      <button class="btn big" id="prNext" hidden>つぎ</button>
+    </div>
     <div class="pitin-body">
       <div class="pitin-side">
         <div id="pitinChar" class="pitin-char"></div>

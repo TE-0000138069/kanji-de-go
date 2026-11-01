@@ -210,3 +210,58 @@ KG.Pitin = class {
     this.onDone();
   }
 };
+
+// 書きで走ったあとのピットイン：読みの練習（例文を見て、読みを選ぶ）
+KG.PitinRead = class {
+  constructor(root, chars, onDone) {
+    this.root = root;
+    this.onDone = onDone;
+    // 字ごとに、読みの問題を2問まで（ドリルの例文があれば、それを先に）
+    this.queue = [];
+    for (const ch of chars) {
+      const qs = KG.drillQuestions(ch).concat(KG.qByKanji[ch].filter(q => q.type === 'reading'));
+      this.queue.push(...qs.slice(0, 2));
+    }
+    this.i = 0;
+    this.count = root.querySelector('#pitinCount');
+    this.sentence = root.querySelector('#prSentence');
+    this.choices = root.querySelector('#prChoices');
+    this.msg = root.querySelector('#prMsg');
+    this.next = root.querySelector('#prNext');
+    this.next.onclick = () => { this.i++; this.show(); };
+    root.querySelector('#pitinSkip').onclick = () => this.finish();
+    this.show();
+  }
+
+  show() {
+    if (this.i >= this.queue.length) return this.finish();
+    const q = this.queue[this.i];
+    this.count.textContent = `${this.i + 1} / ${this.queue.length}`;
+    const e = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    this.sentence.innerHTML = e(q.text).replace(/\{(.+?)\}/, '<em>$1</em>');
+    const opts = KG.shuffle([q.correct, q.wrong]);
+    this.choices.innerHTML = opts.map(o => `<button class="btn pr-choice">${e(o)}</button>`).join('');
+    this.msg.textContent = '';
+    this.next.hidden = true;
+    this.choices.querySelectorAll('button').forEach(b => (b.onclick = () => this.answer(q, b)));
+  }
+
+  answer(q, btn) {
+    const ok = btn.textContent === q.correct;
+    this.choices.querySelectorAll('button').forEach(b => {
+      b.disabled = true;
+      if (b.textContent === q.correct) b.classList.add('right');
+      else if (b === btn) b.classList.add('miss');
+    });
+    KG.recordRead(q, ok ? 'correct' : 'wrong', { hesitated: false, picked: btn.textContent });
+    if (ok) { KG.audio.correct(1); this.msg.textContent = 'せいかい！ ⭕'; }
+    else { KG.audio.wrong(); this.msg.textContent = KG.explain(q); }
+    this.next.hidden = false;
+    this.next.textContent = this.i + 1 < this.queue.length ? 'つぎへ' : 'おわり';
+  }
+
+  finish() {
+    KG.save();
+    this.onDone();
+  }
+};
