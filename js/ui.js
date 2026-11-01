@@ -188,6 +188,7 @@ const renderers = {
       { key: 'se', label: 'こうかおん', opts: [[0, 'なし'], [0.4, 'ちいさい'], [0.7, 'ふつう'], [1, 'おおきい']] },
       { key: 'voice', label: 'よみあげ', opts: [[true, 'あり'], [false, 'なし']] },
       { key: 'textSize', label: 'もじの おおきさ', opts: [[1, 'ふつう'], [1.2, 'おおきい'], [1.4, 'とても おおきい']] },
+      { key: 'graphics', label: 'ドライブの がめん', opts: [['3d', 'ブロック3D'], ['2d', 'かるい2D']], sub: 'うごきが カクカクするときは「かるい2D」に してね' },
       { key: 'shake', label: 'がめんの ゆれ', opts: [[true, 'あり'], [false, 'なし']] },
       { key: 'bgSpeed', label: 'けしきの はやさ', opts: [[0.5, 'ゆっくり'], [1, 'ふつう'], [1.5, 'はやい']] },
     ];
@@ -409,6 +410,7 @@ function startDrive(stage) {
   const hud = makeHud(items);
   ui.drive = new KG.Drive({
     canvas: $('#driveCanvas'),
+    canvas3d: $('#driveCanvas3d'),
     course: stage.course,
     stageIndex: stage.kind === 'normal' ? stage.idx : Math.floor(Math.random() * 5),
     items,

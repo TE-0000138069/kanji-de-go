@@ -7,6 +7,9 @@ KG.Drive = class {
     Object.assign(this, opts);
     this.ctx = this.canvas.getContext('2d');
     const st = KG.state.settings;
+    // 3D表示（ブロック風）。使えないときや「かるい2D」を選んだときは、今までの2D表示
+    this.r3d = st.graphics !== '2d' && this.canvas3d ? KG.get3D(this.canvas3d) : null;
+    if (this.canvas3d) this.canvas3d.style.display = this.r3d ? 'block' : 'none';
     this.slow = st.slow;
     this.shake = st.shake;
     this.bgSpeed = st.bgSpeed;
@@ -56,6 +59,7 @@ KG.Drive = class {
     this.resize = this.resize.bind(this);
     this.loop = this.loop.bind(this);
     window.addEventListener('resize', this.resize);
+    if (this.r3d) this.r3d.attach(this);
     this.resize();
     this.last = performance.now();
     this.raf = requestAnimationFrame(this.loop);
@@ -76,6 +80,7 @@ KG.Drive = class {
     this.w = this.canvas.width;
     this.h = this.canvas.height;
     this.dpr = dpr;
+    if (this.r3d) this.r3d.resize(r.width, r.height);
   }
 
   get item() { return this.items[this.idx]; }
@@ -229,7 +234,7 @@ KG.Drive = class {
       this.puffT = this.boostT > 0 ? 0.03 : 0.09;
       const cw = Math.min(w * 0.2, h * 0.28);
       for (const s of [-1, 1]) {
-        this.puffs.push({ x: w / 2 + s * cw * 0.28, y: h - h * 0.05, vx: s * (20 + Math.random() * 30) * dpr, vy: (40 + Math.random() * 40) * dpr, life: 0.6, max: 0.6, fire: this.boostT > 0 });
+        this.puffs.push({ x: w / 2 + s * cw * (this.r3d ? 0.2 : 0.28), y: this.r3d ? h * 0.86 : h - h * 0.05, vx: s * (20 + Math.random() * 30) * dpr, vy: (40 + Math.random() * 40) * dpr, life: 0.6, max: 0.6, fire: this.boostT > 0 });
       }
     }
     this.puffs = this.puffs.filter(p => (p.life -= dt) > 0);
@@ -339,7 +344,7 @@ KG.Drive = class {
   }
 
   burst(n = 34) {
-    const cx = this.w / 2, cy = this.h * 0.78;
+    const cx = this.w / 2, cy = this.h * (this.r3d ? 0.72 : 0.78);
     const colors = ['#ffd54a', '#ff7eb6', '#7ee0ff', '#9bff7e', '#ffffff', '#ffa94d'];
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2, v = (250 + Math.random() * 450) * this.dpr;
@@ -394,6 +399,7 @@ KG.Drive = class {
   sx(x, ux) { return this.w / 2 + (x - this.camX) * ux; }
 
   draw() {
+    if (this.r3d) return this.draw3d();
     const { ctx, w, h } = this;
     const horizon = h * (0.40 + this.bob);
     const off = -this.camX * 30 * this.dpr - this.track * 0.6 * this.dpr;
@@ -437,6 +443,22 @@ KG.Drive = class {
       ctx.fillStyle = p.c;
       if (p.star) this.star(p.x, p.y, p.r * 1.6);
       else { ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill(); }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // 3D表示：世界は3Dで描き、雪・スピード線・排気ガス・紙ふぶきは上に2Dで重ねる
+  draw3d() {
+    this.r3d.render();
+    const { ctx, w, h } = this;
+    ctx.clearRect(0, 0, w, h);
+    this.drawWeather();
+    this.drawSpeedLines(h * 0.38);
+    this.drawPuffs();
+    for (const p of this.particles) {
+      ctx.globalAlpha = Math.min(1, p.life * 2);
+      ctx.fillStyle = p.c;
+      ctx.fillRect(p.x - p.r, p.y - p.r, p.r * 2, p.r * 2);
     }
     ctx.globalAlpha = 1;
   }
