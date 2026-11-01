@@ -210,6 +210,7 @@ const renderers = {
         KG.setGrade(v);
         ui.course = 'machi';
         ui.zukanCourse = 'machi';
+        ui.customGrade = v;
         toast(`${v}ねんせいの かんじに かえたよ！`);
       }
       else s[r.key] = v;
@@ -231,7 +232,7 @@ const renderers = {
       const k = btn.textContent;
       if (k === 'けす') ans = '';
       else if (k === 'OK') {
-        if (+ans === a + b) { show('parent'); return; }
+        if (+ans === a + b) { ui.customGrade = KG.grade; show('parent'); return; }
         toast('ちがいます');
         ans = '';
       } else if (ans.length < 3) ans += k;
@@ -300,14 +301,14 @@ const parentTabs = {
   },
 
   custom() {
-    ui.customGrade = ui.customGrade || KG.grade;
+    if (!ui.customGrade) ui.customGrade = KG.grade;
     const sel = new Set(KG.state.parent.customKanji);
     $('#parentBody').innerHTML = `
       <div class="card"><h3>出題する字を選ぶ（${sel.size}字選択中）</h3>
         <p>選んだ字は、地図の「おうちの人コース」で出題されます（例：今週の漢字テストの範囲）。</p>
         <div class="prow"><button class="btn small" id="customClear">すべて外す</button></div>
       </div>
-      <div class="tabs" id="customGrades">${KG.GRADES.map(g => `<button data-g="${g}" class="${g === ui.customGrade ? 'on' : ''}">${g}年生</button>`).join('')}</div>
+      <div class="tabs" id="customGrades">${KG.GRADES.map(g => `<button data-g="${g}" class="${g === ui.customGrade ? 'on' : ''}">${g}年生${g === KG.grade ? '（いまの学年）' : ''}</button>`).join('')}</div>
       ${KG.coursesByGrade[ui.customGrade].map(c => `<div class="card"><h3>${c.emoji} ${c.name}コース</h3><div class="pick-grid">
         ${c.chars.map(ch => `<button class="${sel.has(ch) ? 'on' : ''}" data-k="${esc(ch)}">${esc(ch)}</button>`).join('')}
       </div></div>`).join('')}`;
