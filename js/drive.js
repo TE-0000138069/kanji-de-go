@@ -95,6 +95,7 @@ KG.Drive = class {
     if (this.selected) this.switchCount++;
     this.selected = side;
     this.lastSelectT = this.phaseT;
+    this.selectClock = this.clock;
     KG.audio.select(side);
     this.hud.selected(side);
   }
@@ -134,9 +135,12 @@ KG.Drive = class {
     if (this.phase === 'question') {
       const remain = this.T - this.phaseT;
       // ゆっくりモード：選ぶまで、分かれ道の手前で止まって待つ
-      this.waiting = this.slow && !this.selected && remain <= 1.2;
+      // 選んだあとも、さいごに選んでから1.5秒は止まったまま待つ（選び直せるように）
+      const recent = this.selected && this.clock - this.selectClock < 1.5;
+      this.waiting = this.slow && remain <= 1.2 && (!this.selected || recent);
       if (this.waiting) { advance = false; speedMul = 0; }
-      this.hud.waiting(this.waiting);
+      this.hud.waiting(this.waiting && !this.selected);
+      this.hud.timer(remain / this.T);
     }
     if (this.phase === 'start') speedMul = Math.min(1, Math.max(0, (this.phaseT - 1.9) * 2));
     if (this.phase === 'after') speedMul = this.lastResult === 'correct' ? 1.35 : 0.8;

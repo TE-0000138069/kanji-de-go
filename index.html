@@ -35,7 +35,7 @@
           <button data-v="4">4</button><button data-v="5">5</button><button data-v="6">6</button>
         </div>
       </label>
-      <p class="note">いまは 2ねんせいの かんじ（160字）が はいっています。</p>
+      <p class="note">えらんだ がくねんの かんじが でるよ。あとから「せってい」で かえられるよ。</p>
     </div>
     <button class="btn big" id="setupOk">はじめる</button>
   </section>
@@ -58,7 +58,7 @@
 
   <!-- 地図 -->
   <section id="scr-map" class="screen">
-    <div class="topbar"><button class="btn back" data-go="home">◀ もどる</button><h2>ちず</h2><span></span></div>
+    <div class="topbar"><button class="btn back" data-go="home">◀ もどる</button><h2 id="mapTitle">ちず</h2><span></span></div>
     <div class="tabs" id="courseTabs"></div>
     <div class="map" id="mapBody"></div>
   </section>
@@ -70,10 +70,11 @@
       <button id="pauseBtn" class="hud-btn">⏸</button>
       <div id="progress" class="progress"></div>
       <div id="timer" class="timer">0.0</div>
-      <div id="qBanner" class="qbanner"><div class="qlabel"></div><div class="qtext"></div></div>
+      <div id="qBanner" class="qbanner"><div class="qlabel"></div><div class="qtext"></div><div class="qtimer"><i></i></div></div>
       <div id="choiceL" class="choice left"><span class="arrow">◀</span><span class="ctext"></span></div>
       <div id="choiceR" class="choice right"><span class="ctext"></span><span class="arrow">▶</span></div>
       <div id="waitHint" class="wait-hint">どっちの みちに する？</div>
+      <div id="changeHint" class="change-hint">ちがったら はんたいがわを タップ！ けっていまで かえられるよ</div>
       <div id="feedback" class="feedback"></div>
       <div id="explain" class="explain"></div>
       <div id="startMsg" class="start-msg"></div>
@@ -176,6 +177,12 @@
   <div id="toast" class="toast"></div>
 </div>
 
+<script src="js/grades/g1.js"></script>
+<script src="js/grades/g2.js"></script>
+<script src="js/grades/g3.js"></script>
+<script src="js/grades/g4.js"></script>
+<script src="js/grades/g5.js"></script>
+<script src="js/grades/g6.js"></script>
 <script src="js/data.js"></script>
 <script src="js/learn.js"></script>
 <script src="js/audio.js"></script>

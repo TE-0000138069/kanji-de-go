@@ -39,10 +39,16 @@ KG.load = function () {
       const s = JSON.parse(raw);
       const d = defaultState();
       KG.state = { ...d, ...s, settings: { ...d.settings, ...s.settings }, parent: { ...d.parent, ...s.parent } };
+      // v0.2までは2年生だけで、ステージIDに学年がなかった
+      for (const k of Object.keys(KG.state.stages)) {
+        if (/^(machi|umi|yama)-/.test(k)) { KG.state.stages['g2-' + k] = KG.state.stages[k]; delete KG.state.stages[k]; }
+      }
+      if (KG.setGrade) KG.setGrade((KG.state.profile && KG.state.profile.grade) || 2);
       return;
     }
   } catch (e) { console.warn(e); }
   KG.state = defaultState();
+  if (KG.setGrade) KG.setGrade(2);
 };
 
 KG.save = function () {
@@ -297,7 +303,7 @@ KG.pickPitinChars = function (missed) {
 };
 
 // ---- ステージ ----
-KG.stageId = (courseId, idx) => `${courseId}-${idx}`;
+KG.stageId = (courseId, idx) => `g${KG.grade}-${courseId}-${idx}`;
 
 KG.isStageOpen = function (courseId, idx) {
   if (idx === 0) return true;

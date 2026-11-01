@@ -55,6 +55,7 @@ const renderers = {
       const name = $('#setupName').value.trim() || 'ドライバー';
       const grade = +($('#setupGrade .on') || { dataset: { v: 2 } }).dataset.v;
       KG.state.profile = { nickname: name, grade };
+      KG.setGrade(grade);
       KG.state.settings.control = 'tap'; // 傾け操作は、設定画面で許可してから使う
       KG.save();
       show('home');
@@ -63,13 +64,14 @@ const renderers = {
 
   home() {
     const p = KG.state.profile;
-    $('#homeHello').textContent = `${p.nickname} さん、どこへ いく？`;
+    $('#homeHello').textContent = `${p.nickname} さん（${KG.grade}ねんせい）、どこへ いく？`;
     $('#homeStars').textContent = `⭐ ${KG.totalStars()}`;
     $('#homeMastered').textContent = `📖 おぼえた字 ${KG.allChars.filter(KG.isMastered).length} / ${KG.allChars.length}`;
     $('#limitModal').hidden = !KG.overTimeLimit();
   },
 
   map() {
+    $('#mapTitle').textContent = `ちず（${KG.grade}ねんせいの かんじ）`;
     const tabs = $('#courseTabs');
     tabs.innerHTML = KG.courses.map(c => `<button data-c="${c.id}" class="${c.id === ui.course ? 'on' : ''}">${c.emoji} ${c.name}</button>`).join('');
     tabs.querySelectorAll('button').forEach(b => (b.onclick = () => { ui.course = b.dataset.c; renderers.map(); }));
@@ -93,7 +95,7 @@ const renderers = {
     $$('#mapBody .stage').forEach(b => {
       b.onclick = () => {
         const kind = b.dataset.kind;
-        if (kind === 'normal') startDrive({ kind, id: KG.stageId(course.id, +b.dataset.i), course, chars: course.stages[+b.dataset.i] });
+        if (kind === 'normal') startDrive({ kind, id: KG.stageId(course.id, +b.dataset.i), idx: +b.dataset.i, course, chars: course.stages[+b.dataset.i] });
         else if (kind === 'weak') startDrive({ kind, id: `${course.id}-boss`, course, chars: [] });
         else startDrive({ kind, id: 'custom', course, chars: custom });
       };
@@ -147,7 +149,7 @@ const renderers = {
     tabs.innerHTML = KG.courses.map(c => `<button data-c="${c.id}" class="${c.id === ui.zukanCourse ? 'on' : ''}">${c.emoji} ${c.name}</button>`).join('');
     tabs.querySelectorAll('button').forEach(b => (b.onclick = () => { ui.zukanCourse = b.dataset.c; renderers.zukan(); }));
     const course = KG.courses.find(c => c.id === ui.zukanCourse);
-    $('#zukanCount').textContent = `おぼえた字 ${KG.allChars.filter(KG.isMastered).length}`;
+    $('#zukanCount').textContent = `${KG.grade}ねんせい おぼえた字 ${KG.allChars.filter(KG.isMastered).length} / ${KG.allChars.length}`;
     $('#zukanGrid').innerHTML = course.chars.map(ch => {
       const s = KG.starsOf(ch);
       const seen = KG.state.progress[ch] && KG.state.progress[ch].read.seen;
@@ -181,7 +183,7 @@ const renderers = {
       { key: 'oneHand', label: 'かたてボタン', opts: [[false, 'なし'], [true, 'あり']], sub: 'おすたびに ひだり・みぎが いれかわる ボタン' },
       { key: 'hand', label: 'かたてボタンの ばしょ', opts: [['left', 'ひだり'], ['right', 'みぎ']] },
       { key: 'slow', label: 'ゆっくりモード', opts: [[false, 'なし'], [true, 'あり']], sub: 'わかれみちの てまえで とまって まってくれる' },
-      { key: 'grade', label: 'なんねんせい？（はやさが かわるよ）', opts: [1, 2, 3, 4, 5, 6].map(g => [g, String(g)]) },
+      { key: 'grade', label: 'なんねんせい？（でる かんじと はやさが かわるよ）', opts: [1, 2, 3, 4, 5, 6].map(g => [g, String(g)]) },
       { key: 'bgm', label: 'BGM（おんがく）', opts: [[0, 'なし'], [0.3, 'ちいさい'], [0.5, 'ふつう'], [0.8, 'おおきい']] },
       { key: 'se', label: 'こうかおん', opts: [[0, 'なし'], [0.4, 'ちいさい'], [0.7, 'ふつう'], [1, 'おおきい']] },
       { key: 'voice', label: 'よみあげ', opts: [[true, 'あり'], [false, 'なし']] },
@@ -203,7 +205,13 @@ const renderers = {
         });
         return;
       }
-      if (r.key === 'grade') KG.state.profile.grade = v;
+      if (r.key === 'grade') {
+        KG.state.profile.grade = v;
+        KG.setGrade(v);
+        ui.course = 'machi';
+        ui.zukanCourse = 'machi';
+        toast(`${v}ねんせいの かんじに かえたよ！`);
+      }
       else s[r.key] = v;
       if (r.key === 'textSize') applyTextSize();
       if (r.key === 'se' || r.key === 'bgm') { KG.audio.applyVolumes(); if (r.key === 'se') KG.audio.select('R'); }
@@ -270,7 +278,7 @@ const parentTabs = {
 
     $('#parentBody').innerHTML = `
       <div class="card"><h3>概要</h3><div class="kpis">
-        <div class="kpi"><small>覚えた字（読み＋書き）</small><b>${mastered} / ${KG.allChars.length}</b></div>
+        <div class="kpi"><small>${KG.grade}年生の字で覚えた字（読み＋書き）</small><b>${mastered} / ${KG.allChars.length}</b></div>
         <div class="kpi"><small>読みを覚えた字</small><b>${readOk}</b></div>
         <div class="kpi"><small>苦手な字</small><b>${weak.length}</b></div>
         <div class="kpi"><small>今日の学習時間</small><b>${min(KG.today())}分</b></div>
@@ -292,22 +300,25 @@ const parentTabs = {
   },
 
   custom() {
+    ui.customGrade = ui.customGrade || KG.grade;
     const sel = new Set(KG.state.parent.customKanji);
     $('#parentBody').innerHTML = `
       <div class="card"><h3>出題する字を選ぶ（${sel.size}字選択中）</h3>
         <p>選んだ字は、地図の「おうちの人コース」で出題されます（例：今週の漢字テストの範囲）。</p>
         <div class="prow"><button class="btn small" id="customClear">すべて外す</button></div>
       </div>
-      ${KG.courses.map(c => `<div class="card"><h3>${c.emoji} ${c.name}コース</h3><div class="pick-grid">
+      <div class="tabs" id="customGrades">${KG.GRADES.map(g => `<button data-g="${g}" class="${g === ui.customGrade ? 'on' : ''}">${g}年生</button>`).join('')}</div>
+      ${KG.coursesByGrade[ui.customGrade].map(c => `<div class="card"><h3>${c.emoji} ${c.name}コース</h3><div class="pick-grid">
         ${c.chars.map(ch => `<button class="${sel.has(ch) ? 'on' : ''}" data-k="${esc(ch)}">${esc(ch)}</button>`).join('')}
       </div></div>`).join('')}`;
     $$('.pick-grid button').forEach(b => (b.onclick = () => {
       const k = b.dataset.k;
       if (sel.has(k)) sel.delete(k); else sel.add(k);
-      KG.state.parent.customKanji = KG.allChars.filter(c => sel.has(c));
+      KG.state.parent.customKanji = KG.everyChar.filter(c => sel.has(c));
       KG.save();
       parentTabs.custom();
     }));
+    $$('#customGrades button').forEach(b => (b.onclick = () => { ui.customGrade = +b.dataset.g; parentTabs.custom(); }));
     $('#customClear').onclick = () => { KG.state.parent.customKanji = []; KG.save(); parentTabs.custom(); };
   },
 
@@ -398,7 +409,7 @@ function startDrive(stage) {
   ui.drive = new KG.Drive({
     canvas: $('#driveCanvas'),
     course: stage.course,
-    stageIndex: stage.kind === 'normal' ? +stage.id.split('-')[1] : Math.floor(Math.random() * 5),
+    stageIndex: stage.kind === 'normal' ? stage.idx : Math.floor(Math.random() * 5),
     items,
     hud,
     onFinish: (results, elapsed) => finishDrive(stage, results, elapsed),
@@ -414,10 +425,12 @@ function makeHud(items) {
   const dots = prog.querySelectorAll('i');
   const banner = $('#qBanner'), cL = $('#choiceL'), cR = $('#choiceR');
   const fb = $('#feedback'), ex = $('#explain'), sm = $('#startMsg'), wh = $('#waitHint');
-  const cb = $('#combo'), zn = $('#zoneName');
+  const cb = $('#combo'), zn = $('#zoneName'), ch = $('#changeHint'), bar = banner.querySelector('.qtimer i');
   let lastWait = false;
-  [banner, cL, cR, fb, ex, sm, wh, cb, zn].forEach(el => el.classList.remove('on'));
+  [banner, cL, cR, fb, ex, sm, wh, cb, zn, ch].forEach(el => el.classList.remove('on'));
   return {
+    // 決定ラインまでの残り時間（1→0）
+    timer(frac) { bar.style.transform = `scaleX(${Math.max(0, frac)})`; },
     count(text) {
       sm.textContent = text;
       sm.classList.add('on');
@@ -450,12 +463,13 @@ function makeHud(items) {
         [cL, cR].forEach(c => c.classList.remove('sel'));
         [banner, cL, cR].forEach(c => c.classList.add('on'));
       }
-      if (name === 'after') [banner, cL, cR, wh].forEach(c => c.classList.remove('on'));
+      if (name === 'after') [banner, cL, cR, wh, ch].forEach(c => c.classList.remove('on'));
       if (name === 'goal') { this.count('🏁 ゴール！'); cb.classList.remove('on'); }
     },
     selected(side) {
       cL.classList.toggle('sel', side === 'L');
       cR.classList.toggle('sel', side === 'R');
+      ch.classList.add('on');
     },
     waiting(w) {
       if (w !== lastWait) { wh.classList.toggle('on', w); lastWait = w; }

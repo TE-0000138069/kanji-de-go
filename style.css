@@ -214,3 +214,9 @@ table.list td.k { font-family: var(--font); font-size: 24px; }
 .zone-name { position: absolute; top: max(70px, calc(env(safe-area-inset-top) + 60px)); left: max(16px, env(safe-area-inset-left)); background: rgba(255,255,255,0.9); color: var(--ink); border-radius: 999px; padding: 6px 18px; font-size: calc(20px * var(--ts)); font-weight: bold; box-shadow: 0 4px 0 rgba(0,0,0,0.15); opacity: 0; transform: translateX(-30px); transition: opacity 0.4s, transform 0.4s; }
 .zone-name.on { opacity: 1; transform: translateX(0); }
 .res-stars span.pop { display: inline-block; animation: comboPop 0.5s ease-out; }
+
+/* 残り時間のバーと「かえられるよ」 */
+.qtimer { height: 8px; background: #e3ece6; border-radius: 4px; margin-top: 8px; overflow: hidden; }
+.qtimer i { display: block; height: 100%; background: linear-gradient(90deg, #ff5a4f, #ffc928, #33c27a); transform-origin: left; }
+.change-hint { position: absolute; bottom: calc(6% + 110px); left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.55); color: #fff; padding: 6px 16px; border-radius: 999px; font-size: calc(18px * var(--ts)); white-space: nowrap; opacity: 0; transition: opacity 0.2s; }
+.change-hint.on { opacity: 1; }
