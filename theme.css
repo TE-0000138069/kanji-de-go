@@ -277,3 +277,15 @@ html, body { background: #5fb4f2; }
 /* ---- ドリルに合わせる ---- */
 .parent textarea { width: 100%; font-family: var(--font); font-size: 18px; padding: 8px; border: 3px solid var(--edge); border-radius: 0; box-sizing: border-box; }
 .drill-msg { margin-top: 6px; font-size: 14px; }
+
+/* ---- 写真から読み取る ---- */
+.file-btn { display: inline-flex; align-items: center; cursor: pointer; }
+.photo-list { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.photo { position: relative; width: 120px; border: 3px solid var(--edge); background: #fff; }
+.photo img { display: block; width: 100%; height: 150px; object-fit: cover; }
+.photo b { position: absolute; top: 4px; left: 4px; background: #1f8a4c; color: #fff; padding: 0 8px; font-family: var(--pix); font-weight: normal; }
+.photo span { display: flex; }
+.photo span button { flex: 1; border: none; border-top: 2px solid var(--edge); background: #c6c6c6; font-size: 16px; padding: 4px 0; }
+.api-box { margin: 10px 0; background: #b9b9b9; border: 2px solid; border-color: #555 #fff #fff #555; padding: 6px 10px; }
+.api-box summary { cursor: pointer; font-weight: bold; }
+.api-box input { font-size: 16px; padding: 6px; width: min(360px, 100%); border: 2px solid var(--edge); }

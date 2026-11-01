@@ -312,6 +312,87 @@ window.addEventListener('resize', () => {
   ui.mapResize = setTimeout(() => renderers.map(), 200);
 });
 
+// ---------------- ドリルの写真から読み取る ----------------
+const API_KEY_STORE = 'kanjiDeGo.apiKey'; // 学習データとは別に保存（書き出しにも入れない）
+ui.drillPhotos = [];
+
+function setupPhotoReader(g) {
+  const list = $('#photoList');
+  const draw = () => {
+    $('#photoCount').textContent = ui.drillPhotos.length ? `${ui.drillPhotos.length}ページ` : '';
+    list.innerHTML = ui.drillPhotos.map((p, i) => `<div class="photo"><img src="${p.url}" alt=""><b>${i + 1}</b>
+      <span><button data-a="up" data-i="${i}">◀</button><button data-a="down" data-i="${i}">▶</button><button data-a="del" data-i="${i}">✕</button></span></div>`).join('');
+    list.querySelectorAll('button').forEach(b => (b.onclick = () => {
+      const i = +b.dataset.i, a = b.dataset.a, P = ui.drillPhotos;
+      if (a === 'del') { URL.revokeObjectURL(P[i].url); P.splice(i, 1); }
+      if (a === 'up' && i > 0) [P[i - 1], P[i]] = [P[i], P[i - 1]];
+      if (a === 'down' && i < P.length - 1) [P[i + 1], P[i]] = [P[i], P[i + 1]];
+      draw();
+    }));
+  };
+  const add = e => {
+    for (const f of e.target.files) ui.drillPhotos.push({ file: f, url: URL.createObjectURL(f) });
+    e.target.value = '';
+    draw();
+  };
+  $('#photoCam').onchange = add;
+  $('#photoLib').onchange = add;
+  draw();
+
+  $('#apiKeySave').onclick = () => { localStorage.setItem(API_KEY_STORE, $('#apiKey').value.trim()); toast('APIキーを保存しました'); };
+  $('#apiKeyClear').onclick = () => { localStorage.removeItem(API_KEY_STORE); $('#apiKey').value = ''; toast('APIキーを消しました'); };
+
+  $('#photoRead').onclick = async () => {
+    const msg = $('#photoMsg');
+    const apiKey = ($('#apiKey').value || '').trim() || localStorage.getItem(API_KEY_STORE);
+    if (!KG.drillAI) { msg.textContent = 'AIの読み取り機能を読みこめませんでした。インターネットにつないで、アプリを開き直してください。'; return; }
+    if (!ui.drillPhotos.length) { msg.textContent = 'まず、ドリルのページを撮ってください。'; return; }
+    if (!apiKey) { msg.textContent = 'APIキーを入れてください。'; return; }
+    if (!navigator.onLine) { msg.textContent = 'インターネットにつながっていません。'; return; }
+    localStorage.setItem(API_KEY_STORE, apiKey);
+    const btn = $('#photoRead');
+    btn.disabled = true;
+    try {
+      const { data, usage } = await KG.drillAI.extract({ apiKey, files: ui.drillPhotos.map(p => p.file), grade: g, onProgress: t => (msg.textContent = t) });
+      // 1. 順番：アプリにない字（小学校で習わない字）は外す
+      const units = (data.units || []).map(u => ({ name: String(u.name || '').replace(/[:：\n]/g, ' ').trim(), chars: (u.kanji || []).join('').split('').filter(c => KG.kanji[c]) })).filter(u => u.chars.length);
+      const orderText = units.map(u => `${u.name || ''}：${u.chars.join('')}`).join('\n');
+      // 2. 例文：形が正しいものだけ
+      const exLines = (data.examples || []).filter(e => KG.kanji[e.kanji] && e.sentence && e.sentence.includes(e.kanji) && e.reading && e.wrong_reading && e.reading !== e.wrong_reading)
+        .map(e => `${e.kanji}｜${e.sentence.replace(/[|｜]/g, ' ')}｜${e.reading}｜${e.wrong_reading}`);
+      const add = (id, text) => { const t = $(id); t.value = (t.value.trim() ? t.value.trim() + '\n' : '') + text; };
+      if (orderText) add('#drillOrder', orderText);
+      if (exLines.length) add('#drillEx', exLines.join('\n'));
+      const yen = Math.round(((usage.input_tokens || 0) * 4 + (usage.output_tokens || 0) * 20) / 1e6 * 150);
+      msg.innerHTML = `<b>読み取りました：${units.length}回・${units.reduce((a, u) => a + u.chars.length, 0)}字、例文${exLines.length}問</b>（料金の目安：約${yen}円）<br>
+        1・2 の欄に追加しました。内容を確かめてから、それぞれ「保存」を押してください。` + (data.notes ? `<br>AIからのメモ：${esc(data.notes)}` : '');
+    } catch (e) {
+      msg.textContent = KG.drillAI.explainError(e);
+    } finally {
+      btn.disabled = false;
+    }
+  };
+
+  // iPadの「テキスト認識表示」で写した文字から、漢字を拾う
+  $('#pasteGo').onclick = () => {
+    const units = [];
+    let cur = null;
+    for (const raw of $('#pasteText').value.split(/\r?\n/)) {
+      const line = raw.trim();
+      if (!line) continue;
+      // 「6回」「第3回」「12」などで始まる行は、回の区切り。区切りの部分の字（回など）は拾わない
+      const mark = line.match(/^(第?[0-9０-９一二三四五六七八九十]+回|[0-9０-９]+)/);
+      if (mark || !cur) { cur = { name: line.slice(0, 12), chars: [] }; units.push(cur); }
+      for (const ch of mark ? line.slice(mark[0].length) : line) if (KG.kanji[ch] && KG.kanji[ch].grade === g && !units.some(u => u.chars.includes(ch))) cur.chars.push(ch);
+    }
+    const good = units.filter(u => u.chars.length);
+    if (!good.length) { toast(`${g}年生の漢字が見つかりませんでした`); return; }
+    const t = $('#drillOrder');
+    t.value = (t.value.trim() ? t.value.trim() + '\n' : '') + good.map(u => `${u.name.replace(/[:：]/g, ' ')}：${u.chars.join('')}`).join('\n');
+    toast(`${good.length}回分を 1 に入れました。確かめてから保存してください`);
+  };
+}
+
 // ---------------- 車のアイテム ----------------
 // 回る車の表示（3Dが使えないときは、文字だけ）
 function showPreview(box, look) {
@@ -436,6 +517,32 @@ const parentTabs = {
         入力した内容は、このiPadの中だけに保存されます。</p>
         <div class="tabs" id="drillGrades">${KG.GRADES.map(x => `<button data-g="${x}" class="${x === g ? 'on' : ''}">${x}年生${x === KG.grade ? '（いまの学年）' : ''}</button>`).join('')}</div>
       </div>
+      <div class="card"><h3>0. 写真から読み取る（かんたん入力）</h3>
+        <p>ドリルのページを撮ると、AI（Claude）が回ごとの漢字と例文を読み取って、下の 1・2 に入れます。
+        内容を確かめてから「保存」を押してください。ページは何枚でも追加できます（撮った順＝ページの順）。</p>
+        <div class="prow">
+          <label class="btn small file-btn">📷 カメラで撮る<input type="file" accept="image/*" capture="environment" id="photoCam" hidden></label>
+          <label class="btn small file-btn">🖼 アルバムから選ぶ<input type="file" accept="image/*" multiple id="photoLib" hidden></label>
+          <span id="photoCount"></span>
+        </div>
+        <div id="photoList" class="photo-list"></div>
+        <details class="api-box" ${localStorage.getItem(API_KEY_STORE) ? '' : 'open'}>
+          <summary>AIを使う設定（APIキー）</summary>
+          <p class="note">Anthropic のAPIキー（sk-ant- で始まる文字）を入れてください。キーは このiPadの中だけに保存され、AIへの問い合わせにだけ使います。
+          写真は読み取りのために Anthropic に送られます。料金は使った分だけで、写真10枚で おおよそ数十円です（モデル：${KG.drillAI ? KG.drillAI.model : '―'}）。</p>
+          <div class="prow"><input type="password" id="apiKey" placeholder="sk-ant-..." autocomplete="off" value="${esc(localStorage.getItem(API_KEY_STORE) || '')}">
+            <button class="btn small" id="apiKeySave">キーを保存</button><button class="btn small danger" id="apiKeyClear">キーを消す</button></div>
+        </details>
+        <div class="prow"><button class="btn big" id="photoRead">写真を読み取る</button></div>
+        <div id="photoMsg" class="drill-msg"></div>
+        <details class="api-box">
+          <summary>AIを使わない方法（iPadの「テキスト認識表示」）</summary>
+          <p class="note">iPadのカメラやアルバムで写真の文字を長押しして「すべてを選択」→「コピー」し、下に貼り付けてください。
+          漢字を拾って、1 の欄に入れます（数字や「回」で始まる行を、回の区切りにします）。</p>
+          <textarea id="pasteText" rows="4" placeholder="ここに貼り付け"></textarea>
+          <div class="prow"><button class="btn small" id="pasteGo">漢字を拾って 1 に入れる</button></div>
+        </details>
+      </div>
       <div class="card"><h3>1. ドリルの順番（${g}年生）</h3>
         <p>1行に1回分。「回の名前：その回の字」の形で書きます（回の名前は省略できます）。地図のステージが、この順番・このまとまりになります。
         入力しなかった字は「のこりの字」として最後のステージに入ります。</p>
@@ -451,6 +558,7 @@ const parentTabs = {
         <div id="drillExMsg" class="drill-msg"></div>
       </div>`;
     $$('#drillGrades button').forEach(b => (b.onclick = () => { ui.drillGrade = +b.dataset.g; parentTabs.drill(); }));
+    setupPhotoReader(g);
     const reGrade = () => { KG.setGrade(KG.grade); };
     $('#drillOrderSave').onclick = () => {
       const r = KG.parseDrillOrder($('#drillOrder').value, g);
