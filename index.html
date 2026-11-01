@@ -7,21 +7,24 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="漢字でGO！">
-<meta name="theme-color" content="#3d8bff">
+<meta name="theme-color" content="#3a7d2c">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="theme.css">
 <title>漢字でGO！</title>
 </head>
 <body>
+<canvas id="menuBg"></canvas>
 <div id="app">
 
   <!-- タイトル -->
   <section id="scr-title" class="screen title">
-    <div class="logo">漢字で<span>GO！</span></div>
-    <div class="logo-car">🚗💨</div>
-    <button class="btn big" data-go="start">スタート</button>
+    <div class="logo"><span class="l1">漢字で</span><span class="l2">GO！</span></div>
+    <div class="tagline">かんじで ドライブ！</div>
+    <button class="btn big start-btn" data-go="start">▶ スタート</button>
+    <div class="credit">漢字でGO！ v0.5</div>
   </section>
 
   <!-- はじめての設定 -->
@@ -46,14 +49,14 @@
       <div id="homeHello" class="hello"></div>
       <div class="home-stats"><span id="homeStars"></span><span id="homeMastered"></span></div>
     </div>
-    <button class="btn huge drive-btn" data-go="map">🚗 ドライブに でかける</button>
+    <button class="btn huge drive-btn" data-go="map"><i class="ico ico-car"></i> ドライブに でかける</button>
     <div class="home-grid">
-      <button class="btn tile" data-go="zukan">📖<br>ずかん</button>
-      <button class="btn tile" data-go="garage">🎨<br>くるま</button>
-      <button class="btn tile" data-go="stamp">⛽<br>スタンプ</button>
-      <button class="btn tile" data-go="settings">⚙️<br>せってい</button>
+      <button class="btn tile" data-go="zukan"><i class="ico ico-book"></i>ずかん</button>
+      <button class="btn tile" data-go="garage"><i class="ico ico-car"></i>くるま</button>
+      <button class="btn tile" data-go="stamp"><i class="ico ico-fuel"></i>スタンプ</button>
+      <button class="btn tile" data-go="settings"><i class="ico ico-gear"></i>せってい</button>
     </div>
-    <button class="btn small parent-btn" data-go="lock">おうちの人</button>
+    <button class="btn small parent-btn" data-go="lock"><i class="ico ico-house"></i> おうちの人</button>
   </section>
 
   <!-- 地図 -->
@@ -124,7 +127,7 @@
 
   <!-- スタンプ -->
   <section id="scr-stamp" class="screen">
-    <div class="topbar"><button class="btn back" data-go="home">◀ もどる</button><h2>⛽ ガソリンスタンド</h2><span></span></div>
+    <div class="topbar"><button class="btn back" data-go="home">◀ もどる</button><h2><i class="ico ico-fuel"></i> ガソリンスタンド</h2><span></span></div>
     <div id="stampMsg" class="stamp-msg"></div>
     <div id="stampCard" class="stamp-card"></div>
     <button class="btn big" data-go="map" id="stampToMap">ちずへ</button>
@@ -132,20 +135,20 @@
 
   <!-- 図鑑 -->
   <section id="scr-zukan" class="screen">
-    <div class="topbar"><button class="btn back" data-go="home">◀ もどる</button><h2>📖 かんじずかん</h2><span id="zukanCount"></span></div>
+    <div class="topbar"><button class="btn back" data-go="home">◀ もどる</button><h2><i class="ico ico-book"></i> かんじずかん</h2><span id="zukanCount"></span></div>
     <div class="tabs" id="zukanTabs"></div>
     <div id="zukanGrid" class="zukan-grid"></div>
   </section>
 
   <!-- 車の色 -->
   <section id="scr-garage" class="screen">
-    <div class="topbar"><button class="btn back" data-go="home">◀ もどる</button><h2>🎨 くるまの いろ</h2><span id="garageStars"></span></div>
+    <div class="topbar"><button class="btn back" data-go="home">◀ もどる</button><h2><i class="ico ico-car"></i> くるまの いろ</h2><span id="garageStars"></span></div>
     <div id="garageList" class="garage-list"></div>
   </section>
 
   <!-- 設定（子ども） -->
   <section id="scr-settings" class="screen">
-    <div class="topbar"><button class="btn back" data-go="home">◀ もどる</button><h2>⚙️ せってい</h2><span></span></div>
+    <div class="topbar"><button class="btn back" data-go="home">◀ もどる</button><h2><i class="ico ico-gear"></i> せってい</h2><span></span></div>
     <div id="settingsBody" class="settings"></div>
   </section>
 
@@ -192,6 +195,7 @@
 <script src="js/drive3d.js"></script>
 <script src="js/drive.js"></script>
 <script src="js/pitin.js"></script>
+<script src="js/theme.js"></script>
 <script src="js/ui.js"></script>
 </body>
 </html>

@@ -1,0 +1,200 @@
+/* メニュー画面の見た目（ブロック風）
+   ブロック模様（--tex-*）とドット絵アイコン（--ico-*）は js/theme.js が作る */
+
+@font-face {
+  font-family: "DotGothic16";
+  src: url("fonts/DotGothic16-Regular.ttf") format("truetype");
+  font-display: swap;
+}
+:root {
+  --pix: "DotGothic16", var(--font);
+  --ink: #2b2b2b;
+  --panel: #c6c6c6;
+  --bevel-hi: #ffffff;
+  --bevel-lo: #555555;
+  --edge: #1b1b1b;
+}
+
+html, body { background: #5fb4f2; }
+#menuBg { position: fixed; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges; z-index: 0; }
+#app { z-index: 1; }
+.screen { background: transparent !important; }
+.screen h1, .screen h2 { font-family: var(--pix); color: #fff; text-shadow: 3px 3px 0 #3a3a3a; letter-spacing: 0.04em; font-weight: normal; }
+.screen h2 small { font-size: 0.7em; }
+
+/* ---- ドット絵アイコン ---- */
+.ico { display: inline-block; width: 1.4em; height: 1.4em; background: center / contain no-repeat; image-rendering: pixelated; vertical-align: -0.3em; }
+.ico-book { background-image: var(--ico-book); }
+.ico-car { background-image: var(--ico-car); }
+.ico-fuel { background-image: var(--ico-fuel); }
+.ico-gear { background-image: var(--ico-gear); }
+.ico-house { background-image: var(--ico-house); }
+.ico-lock { background-image: var(--ico-lock); }
+.ico-star { background-image: var(--ico-star); }
+.ico-star.off { filter: grayscale(1) brightness(0.55); opacity: 0.7; }
+
+/* ---- パネル（灰色の立体枠）---- */
+.form, .settings .row, .card, .modal-box, .home-head, .stamp-card, .res-panel, .pitin-side, .lock-panel {
+  background: var(--panel);
+  color: var(--ink);
+  border: 3px solid var(--edge);
+  border-radius: 0;
+  box-shadow: inset 3px 3px 0 var(--bevel-hi), inset -3px -3px 0 var(--bevel-lo), 0 6px 0 rgba(0, 0, 0, 0.35);
+}
+.form { padding: 18px 22px; }
+.form label { font-family: var(--pix); font-weight: normal; }
+.form input { font-family: var(--pix); border-radius: 0; border: 3px solid var(--edge); background: #1e1e1e; color: #fff; box-shadow: inset 2px 2px 0 #000; }
+.note { color: #4a4a4a; }
+
+/* ---- ボタン（石のブロック）---- */
+.btn {
+  font-family: var(--pix);
+  font-weight: normal;
+  border-radius: 0;
+  border: 3px solid var(--edge);
+  background: var(--tex-stone) 0 0 / 48px 48px;
+  image-rendering: pixelated;
+  color: #fff;
+  text-shadow: 2px 2px 0 #2b2b2b;
+  box-shadow: inset 3px 3px 0 rgba(255, 255, 255, 0.45), inset -3px -3px 0 rgba(0, 0, 0, 0.4), 0 5px 0 var(--edge);
+  letter-spacing: 0.03em;
+}
+.btn:active { transform: translateY(4px); box-shadow: inset -3px -3px 0 rgba(255, 255, 255, 0.35), inset 3px 3px 0 rgba(0, 0, 0, 0.45), 0 1px 0 var(--edge); }
+.btn:disabled { filter: grayscale(1) brightness(0.7); }
+/* 草のブロック（決定・スタートなど） */
+.btn.big, .btn.huge {
+  background: linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0)), var(--tex-grass) 0 0 / 48px 48px;
+  background-color: #4f9e33;
+}
+.btn.big, .btn.huge { border-radius: 0; }
+.btn.huge { font-size: 1.7em; padding: 0.7em 1.4em; animation: breathe 2.4s ease-in-out infinite; }
+@keyframes breathe { 50% { filter: brightness(1.12); } }
+.btn.small, .btn.back { background-image: var(--tex-planks); background-size: 48px 48px; }
+.btn.danger, .parent .danger { background: #b3261e; }
+
+/* ---- タブ・切りかえ（持ち物欄のマス）---- */
+.tabs button, .seg button {
+  font-family: var(--pix);
+  font-weight: normal;
+  border-radius: 0;
+  border: 3px solid #373737;
+  background: rgba(30, 30, 30, 0.55);
+  color: #fff;
+  text-shadow: 2px 2px 0 #000;
+  box-shadow: inset 2px 2px 0 rgba(0, 0, 0, 0.5);
+}
+.tabs button.on, .seg button.on { border-color: #ffffff; background: rgba(255, 255, 255, 0.25); box-shadow: 0 0 0 3px #1b1b1b; }
+.form .seg button { background: #8b8b8b; border-color: #373737 #ffffff #ffffff #373737; }
+.form .seg button.on { background: #4f9e33; border-color: #ffffff; }
+
+/* ---- タイトル ---- */
+.title { justify-content: center; gap: 10px; }
+.logo { font-family: var(--pix); font-size: min(15vw, 120px); line-height: 1.1; display: flex; gap: 0.15em; align-items: baseline; }
+.logo .l1, .logo .l2 {
+  color: #f4f4f4;
+  text-shadow: 0.05em 0.05em 0 #4a4a4a, 0.1em 0.1em 0 rgba(0, 0, 0, 0.3);
+}
+.logo .l2 { color: #ffd54a; text-shadow: 0.05em 0.05em 0 #8a5a00, 0.1em 0.1em 0 rgba(0, 0, 0, 0.3); }
+.tagline { font-family: var(--pix); font-size: 1.4em; color: #ffef6a; text-shadow: 2px 2px 0 #3a3a00; animation: tagpulse 0.9s ease-in-out infinite alternate; margin-bottom: 18px; }
+@keyframes tagpulse { to { transform: scale(1.08); } }
+.start-btn { font-size: 1.6em !important; padding: 0.5em 2.2em !important; }
+.credit { position: absolute; bottom: max(10px, env(safe-area-inset-bottom)); right: 16px; font-family: var(--pix); color: #fff; text-shadow: 2px 2px 0 #000; font-size: 0.7em; opacity: 0.8; }
+
+/* ---- ホーム ---- */
+.home { gap: 18px; }
+.home-head { padding: 12px 28px; }
+.hello { font-family: var(--pix); font-weight: normal; }
+.home-stats { font-family: var(--pix); }
+.home-grid { gap: 12px; }
+.tile { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 0.7em 0; }
+.tile .ico { width: 2.4em; height: 2.4em; filter: drop-shadow(3px 3px 0 rgba(0, 0, 0, 0.45)); }
+.parent-btn { font-size: 0.75em; }
+
+/* ---- 地図（草ブロックのステージ）---- */
+.map { gap: 14px; }
+.stage {
+  width: 150px; height: 128px;
+  border-radius: 0;
+  border: 3px solid var(--edge);
+  background: var(--tex-grassBlock) 0 0 / 100% 100%;
+  image-rendering: pixelated;
+  color: #fff;
+  font-family: var(--pix);
+  font-weight: normal;
+  text-shadow: 2px 2px 0 #2b2b2b;
+  box-shadow: inset -4px -4px 0 rgba(0, 0, 0, 0.3), 0 6px 0 rgba(0, 0, 0, 0.4);
+}
+.stage:active { transform: translateY(3px); }
+.stage .num { font-size: 1.7em; }
+.stage .num .ico { width: 1.2em; height: 1.2em; }
+.stage .chars { color: #fff; font-family: var(--font); font-weight: bold; text-shadow: 1px 1px 0 #2b2b2b; background: rgba(0, 0, 0, 0.35); padding: 0 6px; }
+.stage .st .ico { width: 1.1em; height: 1.1em; }
+.stage.locked { background-image: var(--tex-cobble); background-size: 48px 48px; color: #ddd; }
+.stage.boss { background-image: var(--tex-obsidian); background-size: 48px 48px; }
+.stage.boss .chars { color: #e4d9ff; }
+.stage.custom { background-image: var(--tex-planks); background-size: 48px 48px; font-size: 0.85em; }
+.stage.boss { font-size: 0.9em; }
+
+/* ---- 結果 ---- */
+.result { gap: 6px; }
+.res-stars { color: #ffd54a; text-shadow: 3px 3px 0 #7a5800, 6px 6px 0 rgba(0, 0, 0, 0.3); }
+.res-stars .off { color: #6b6b6b; text-shadow: 3px 3px 0 #333; }
+.res-nums { background: var(--panel); border: 3px solid var(--edge); box-shadow: inset 3px 3px 0 #fff, inset -3px -3px 0 #555; padding: 10px 26px; font-family: var(--pix); }
+.res-nums b { font-weight: normal; }
+.res-bonus { font-family: var(--pix); color: #ffef6a; text-shadow: 2px 2px 0 #3a3a00; }
+.res-list span { border-radius: 0; background: #8b8b8b; border: 2px solid; border-color: #373737 #fff #fff #373737; color: #1e1e1e; }
+
+/* ---- ピットイン（作業台）---- */
+.pitin-side { padding: 14px; }
+.pitin-char { border-radius: 0; border: 3px solid var(--edge); box-shadow: inset 3px 3px 0 #fff, inset -3px -3px 0 #555; background: #fffdf6; }
+.pitin-msg { font-family: var(--pix); font-weight: normal; }
+.pad { border-radius: 0; border: 6px solid; border-color: #b8945f #6b4a22 #6b4a22 #b8945f; box-shadow: 0 0 0 3px var(--edge), 0 8px 0 rgba(0, 0, 0, 0.35); }
+
+/* ---- スタンプ（持ち物欄）---- */
+.stamp-msg { font-family: var(--pix); color: #fff; text-shadow: 2px 2px 0 #2b2b2b; font-weight: normal; }
+.stamp-card { border-radius: 0; gap: 6px; padding: 14px; }
+.stamp-card div { border-radius: 0; width: 76px; height: 76px; background: #8b8b8b; border: 3px solid; border-color: #373737 #fff #fff #373737; }
+.stamp-card div.got { background: #8b8b8b var(--ico-fuel) center / 70% no-repeat; image-rendering: pixelated; font-size: 0; border-color: #373737 #fff #fff #373737; }
+
+/* ---- 図鑑（持ち物欄のマス）---- */
+.zukan-grid { gap: 4px; background: var(--panel); border: 3px solid var(--edge); padding: 10px; box-shadow: inset 3px 3px 0 #fff, inset -3px -3px 0 #555; }
+.zcell { border-radius: 0; background: #8b8b8b; border: 3px solid; border-color: #373737 #fff #fff #373737; box-shadow: none; }
+.zcell .k { color: #1e1e1e; }
+.zcell.unseen .k { color: #6f6f6f; font-family: var(--pix); }
+.zcell .s { color: #ffd54a; text-shadow: 1px 1px 0 #5a4300; }
+.zcell.weak { outline: 3px solid #ff5a4f; outline-offset: -3px; }
+
+/* ---- 車の色 ---- */
+.garage-item { border-radius: 0; background: var(--panel); border: 3px solid var(--edge); box-shadow: inset 3px 3px 0 #fff, inset -3px -3px 0 #555; font-family: var(--pix); font-weight: normal; }
+.garage-item .sw { border-radius: 0; width: 64px; height: 48px; border: 3px solid var(--edge); box-shadow: inset 4px 4px 0 rgba(255, 255, 255, 0.35), inset -4px -4px 0 rgba(0, 0, 0, 0.3); }
+.garage-item.sel { outline: 4px solid #ffd54a; }
+
+/* ---- 設定 ---- */
+.settings .row { border-radius: 0; padding: 12px 18px; }
+.settings .row > div:first-child { font-family: var(--pix); font-weight: normal; }
+.settings .seg button { background: #8b8b8b; border-color: #373737 #ffffff #ffffff #373737; }
+.settings .seg button.on { background: #4f9e33; border-color: #ffffff; box-shadow: 0 0 0 3px var(--edge); }
+
+/* ---- 保護者ロック ---- */
+.lock-q { font-family: var(--pix); color: #fff; text-shadow: 3px 3px 0 #2b2b2b; font-weight: normal; }
+.lock-ans { font-family: var(--pix); background: #1e1e1e; color: #fff; border: 3px solid var(--edge); box-shadow: inset 2px 2px 0 #000; padding: 4px 16px; }
+.keypad button { border-radius: 0; font-family: var(--pix); font-weight: normal; background: var(--tex-stone) 0 0 / 48px 48px; image-rendering: pixelated; color: #fff; text-shadow: 2px 2px 0 #2b2b2b; border: 3px solid var(--edge); box-shadow: inset 3px 3px 0 rgba(255, 255, 255, 0.45), inset -3px -3px 0 rgba(0, 0, 0, 0.4), 0 4px 0 var(--edge); }
+.keypad button:active { transform: translateY(3px); }
+
+/* ---- 保護者メニュー（大人向け：読みやすさを優先）---- */
+.parent .card { border-radius: 0; }
+.parent .card h3 { font-family: var(--pix); font-weight: normal; }
+.parent .kpi { border-radius: 0; background: #b0b0b0; border: 2px solid; border-color: #555 #fff #fff #555; }
+.parent .pick-grid button { border-radius: 0; background: #8b8b8b; border: 3px solid; border-color: #373737 #fff #fff #373737; color: #1e1e1e; }
+.parent .pick-grid button.on { background: #4f9e33; color: #fff; border-color: #fff; }
+.parent table.list td, .parent table.list th { border-bottom-color: #a5a5a5; }
+
+/* ---- 小さな窓・お知らせ ---- */
+.modal-box { padding: 24px 32px; }
+.modal-box h2 { color: var(--ink); text-shadow: none; }
+.modal-box p { color: var(--ink); }
+.toast { border-radius: 0; font-family: var(--pix); background: rgba(20, 20, 20, 0.9); border: 3px solid #fff; box-shadow: 0 0 0 3px #000; }
+
+/* ---- 上の帯 ---- */
+.topbar h2 { text-align: center; }
+.parent .bars span { background: #4f9e33; border-radius: 0; }

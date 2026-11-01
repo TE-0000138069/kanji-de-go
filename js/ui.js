@@ -79,15 +79,15 @@ const renderers = {
     let html = '';
     const custom = KG.state.parent.customKanji.filter(c => KG.kanji[c]);
     if (custom.length) {
-      html += `<button class="stage custom" data-kind="custom"><span class="num">🏠</span>おうちの人コース<span class="chars">${esc(custom.slice(0, 6).join(''))}${custom.length > 6 ? '…' : ''}</span></button>`;
+      html += `<button class="stage custom" data-kind="custom"><span class="num"><i class="ico ico-house"></i></span>おうちの人<span class="chars">${esc(custom.slice(0, 6).join(''))}${custom.length > 6 ? '…' : ''}</span></button>`;
     }
     course.stages.forEach((chars, i) => {
       const open = KG.isStageOpen(course.id, i);
       const rec = KG.state.stages[KG.stageId(course.id, i)];
       html += `<button class="stage ${open ? '' : 'locked'}" data-kind="normal" data-i="${i}" ${open ? '' : 'disabled'}>
-        <span class="num">${open ? i + 1 : '🔒'}</span>
+        <span class="num">${open ? i + 1 : '<i class="ico ico-lock"></i>'}</span>
         <span class="chars">${open ? esc(chars.join('')) : ''}</span>
-        <span class="st">${rec ? '★'.repeat(rec.stars) + '☆'.repeat(3 - rec.stars) : '☆☆☆'}</span></button>`;
+        <span class="st">${Array.from({ length: 3 }, (_, j) => `<i class="ico ico-star ${rec && j < rec.stars ? '' : 'off'}"></i>`).join('')}</span></button>`;
     });
     const weakN = KG.allChars.filter(KG.isWeak).length;
     html += `<button class="stage boss" data-kind="weak"><span class="num">🌀</span>にがてトンネル<span class="chars">にがてな字 ${weakN}こ</span></button>`;
@@ -125,7 +125,7 @@ const renderers = {
     }).join('');
     const missed = results.filter(r => r.result !== 'correct' || r.hesitated).map(r => r.q.kanji);
     const pit = KG.pickPitinChars(missed);
-    $('#resNext').textContent = pit.length ? '🔧 ピットインへ' : '⛽ スタンドへ';
+    $('#resNext').textContent = pit.length ? 'ピットインへ ▶' : 'スタンドへ ▶';
     $('#resNext').onclick = () => (pit.length ? show('pitin', pit) : show('stamp', true));
   },
 
