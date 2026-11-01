@@ -314,6 +314,11 @@ window.addEventListener('resize', () => {
 
 // ---------------- ドリルの写真から読み取る ----------------
 const API_KEY_STORE = 'kanjiDeGo.apiKey'; // 学習データとは別に保存（書き出しにも入れない）
+const GEMINI_KEY_STORE = 'kanjiDeGo.geminiKey';
+const AI_PROVIDER_STORE = 'kanjiDeGo.aiProvider';
+const aiProvider = () => localStorage.getItem(AI_PROVIDER_STORE) === 'gemini' ? 'gemini' : 'claude';
+const keyStore = p => (p === 'gemini' ? GEMINI_KEY_STORE : API_KEY_STORE);
+const aiKey = p => localStorage.getItem(keyStore(p)) || '';
 ui.drillPhotos = [];
 
 function setupPhotoReader(g) {
@@ -339,21 +344,23 @@ function setupPhotoReader(g) {
   $('#photoLib').onchange = add;
   draw();
 
-  $('#apiKeySave').onclick = () => { localStorage.setItem(API_KEY_STORE, $('#apiKey').value.trim()); toast('APIキーを保存しました'); };
-  $('#apiKeyClear').onclick = () => { localStorage.removeItem(API_KEY_STORE); $('#apiKey').value = ''; toast('APIキーを消しました'); };
+  $$('#aiProvider button').forEach(b => (b.onclick = () => { localStorage.setItem(AI_PROVIDER_STORE, b.dataset.p); parentTabs.drill(); }));
+  $('#apiKeySave').onclick = () => { localStorage.setItem(keyStore(aiProvider()), $('#apiKey').value.trim()); toast('APIキーを保存しました'); };
+  $('#apiKeyClear').onclick = () => { localStorage.removeItem(keyStore(aiProvider())); $('#apiKey').value = ''; toast('APIキーを消しました'); };
 
   $('#photoRead').onclick = async () => {
     const msg = $('#photoMsg');
-    const apiKey = ($('#apiKey').value || '').trim() || localStorage.getItem(API_KEY_STORE);
+    const provider = aiProvider();
+    const apiKey = ($('#apiKey').value || '').trim() || aiKey(provider);
     if (!KG.drillAI) { msg.textContent = 'AIの読み取り機能を読みこめませんでした。インターネットにつないで、アプリを開き直してください。'; return; }
     if (!ui.drillPhotos.length) { msg.textContent = 'まず、ドリルのページを撮ってください。'; return; }
     if (!apiKey) { msg.textContent = 'APIキーを入れてください。'; return; }
     if (!navigator.onLine) { msg.textContent = 'インターネットにつながっていません。'; return; }
-    localStorage.setItem(API_KEY_STORE, apiKey);
+    localStorage.setItem(keyStore(provider), apiKey);
     const btn = $('#photoRead');
     btn.disabled = true;
     try {
-      const { data, usage } = await KG.drillAI.extract({ apiKey, files: ui.drillPhotos.map(p => p.file), grade: g, onProgress: t => (msg.textContent = t) });
+      const { data, usage } = await KG.drillAI.extract({ provider, apiKey, files: ui.drillPhotos.map(p => p.file), grade: g, onProgress: t => (msg.textContent = t) });
       // 1. 順番：アプリにない字（小学校で習わない字）は外す
       const units = (data.units || []).map(u => ({ name: String(u.name || '').replace(/[:：\n]/g, ' ').trim(), chars: (u.kanji || []).join('').split('').filter(c => KG.kanji[c]) })).filter(u => u.chars.length);
       const orderText = units.map(u => `${u.name || ''}：${u.chars.join('')}`).join('\n');
@@ -363,8 +370,8 @@ function setupPhotoReader(g) {
       const add = (id, text) => { const t = $(id); t.value = (t.value.trim() ? t.value.trim() + '\n' : '') + text; };
       if (orderText) add('#drillOrder', orderText);
       if (exLines.length) add('#drillEx', exLines.join('\n'));
-      const yen = Math.round(((usage.input_tokens || 0) * 4 + (usage.output_tokens || 0) * 20) / 1e6 * 150);
-      msg.innerHTML = `<b>読み取りました：${units.length}回・${units.reduce((a, u) => a + u.chars.length, 0)}字、例文${exLines.length}問</b>（料金の目安：約${yen}円）<br>
+      const yen = KG.drillAI.estimateYen(provider, usage);
+      msg.innerHTML = `<b>読み取りました：${units.length}回・${units.reduce((a, u) => a + u.chars.length, 0)}字、例文${exLines.length}問</b>（${provider === 'gemini' ? `有料プランなら約${yen}円・無料枠なら0円` : `料金の目安：約${yen}円`}）<br>
         1・2 の欄に追加しました。内容を確かめてから、それぞれ「保存」を押してください。` + (data.notes ? `<br>AIからのメモ：${esc(data.notes)}` : '');
     } catch (e) {
       msg.textContent = KG.drillAI.explainError(e);
@@ -518,7 +525,7 @@ const parentTabs = {
         <div class="tabs" id="drillGrades">${KG.GRADES.map(x => `<button data-g="${x}" class="${x === g ? 'on' : ''}">${x}年生${x === KG.grade ? '（いまの学年）' : ''}</button>`).join('')}</div>
       </div>
       <div class="card"><h3>0. 写真から読み取る（かんたん入力）</h3>
-        <p>ドリルのページを撮ると、AI（Claude）が回ごとの漢字と例文を読み取って、下の 1・2 に入れます。
+        <p>ドリルのページを撮ると、AI（${aiProvider() === 'gemini' ? 'Gemini' : 'Claude'}）が回ごとの漢字と例文を読み取って、下の 1・2 に入れます。
         内容を確かめてから「保存」を押してください。ページは何枚でも追加できます（撮った順＝ページの順）。</p>
         <div class="prow">
           <label class="btn small file-btn">📷 カメラで撮る<input type="file" accept="image/*" capture="environment" id="photoCam" hidden></label>
@@ -526,11 +533,20 @@ const parentTabs = {
           <span id="photoCount"></span>
         </div>
         <div id="photoList" class="photo-list"></div>
-        <details class="api-box" ${localStorage.getItem(API_KEY_STORE) ? '' : 'open'}>
-          <summary>AIを使う設定（APIキー）</summary>
-          <p class="note">Anthropic のAPIキー（sk-ant- で始まる文字）を入れてください。キーは このiPadの中だけに保存され、AIへの問い合わせにだけ使います。
-          写真は読み取りのために Anthropic に送られます。料金は使った分だけで、写真10枚で おおよそ数十円です（モデル：${KG.drillAI ? KG.drillAI.model : '―'}）。</p>
-          <div class="prow"><input type="password" id="apiKey" placeholder="sk-ant-..." autocomplete="off" value="${esc(localStorage.getItem(API_KEY_STORE) || '')}">
+        <details class="api-box" ${aiKey(aiProvider()) ? '' : 'open'}>
+          <summary>AIを使う設定（いま：${aiProvider() === 'gemini' ? 'Gemini' : 'Claude'}）</summary>
+          <div class="seg" id="aiProvider">
+            <button data-p="claude" class="${aiProvider() === 'claude' ? 'on' : ''}">Claude（Anthropic）</button>
+            <button data-p="gemini" class="${aiProvider() === 'gemini' ? 'on' : ''}">Gemini（Google）</button>
+          </div>
+          ${aiProvider() === 'gemini'
+            ? `<p class="note">Google AI Studio（aistudio.google.com）で作った Gemini のAPIキーを入れてください。<b>無料枠</b>で使えます（1日・1分あたりの回数に上限あり）。
+               ただし無料枠では、送った写真がGoogleのサービス改善に使われることがあります（有料プランでは使われません）。名前などが写らないように撮ってください。
+               モデル：${KG.drillAI ? KG.drillAI.geminiModel : '―'}</p>`
+            : `<p class="note">Anthropic のAPIキー（sk-ant- で始まる文字）を入れてください。料金は使った分だけで、写真10枚で おおよそ数十円です。
+               写真は読み取りのために Anthropic に送られます。モデル：${KG.drillAI ? KG.drillAI.model : '―'}</p>`}
+          <p class="note">キーは このiPadの中だけに保存され、AIへの問い合わせにだけ使います（学習データの書き出しには入りません）。</p>
+          <div class="prow"><input type="password" id="apiKey" placeholder="${aiProvider() === 'gemini' ? 'Gemini のAPIキー' : 'sk-ant-...'}" autocomplete="off" value="${esc(aiKey(aiProvider()))}">
             <button class="btn small" id="apiKeySave">キーを保存</button><button class="btn small danger" id="apiKeyClear">キーを消す</button></div>
         </details>
         <div class="prow"><button class="btn big" id="photoRead">写真を読み取る</button></div>

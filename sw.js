@@ -1,6 +1,6 @@
 // オフラインで使えるように、アプリのファイルをすべて保存しておく
 // ファイルを更新したら VERSION の数字を上げる
-const VERSION = 'kanji-de-go-v9';
+const VERSION = 'kanji-de-go-v10';
 const FILES = [
   './', './index.html', './style.css', './theme.css', './js/theme.js', './js/mapview.js', './lib/drill-ai.js', './fonts/DotGothic16-Regular.ttf', './manifest.webmanifest',
   './js/grades/g1.js', './js/grades/g2.js', './js/grades/g3.js', './js/grades/g4.js', './js/grades/g5.js', './js/grades/g6.js',
