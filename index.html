@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="漢字でGO！">
+<meta name="theme-color" content="#3d8bff">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="style.css">
+<title>漢字でGO！</title>
+</head>
+<body>
+<div id="app">
+
+  <!-- タイトル -->
+  <section id="scr-title" class="screen title">
+    <div class="logo">漢字で<span>GO！</span></div>
+    <div class="logo-car">🚗💨</div>
+    <button class="btn big" data-go="start">スタート</button>
+  </section>
+
+  <!-- はじめての設定 -->
+  <section id="scr-setup" class="screen">
+    <h1>はじめまして！</h1>
+    <div class="form">
+      <label>なまえ（ニックネーム）<input id="setupName" maxlength="10" placeholder="なまえ"></label>
+      <label>なんねんせい？
+        <div class="seg" id="setupGrade">
+          <button data-v="1">1</button><button data-v="2" class="on">2</button><button data-v="3">3</button>
+          <button data-v="4">4</button><button data-v="5">5</button><button data-v="6">6</button>
+        </div>
+      </label>
+      <p class="note">いまは 2ねんせいの かんじ（160字）が はいっています。</p>
+    </div>
+    <button class="btn big" id="setupOk">はじめる</button>
+  </section>
+
+  <!-- ホーム（車庫） -->
+  <section id="scr-home" class="screen home">
+    <div class="home-head">
+      <div id="homeHello" class="hello"></div>
+      <div class="home-stats"><span id="homeStars"></span><span id="homeMastered"></span></div>
+    </div>
+    <button class="btn huge drive-btn" data-go="map">🚗 ドライブに でかける</button>
+    <div class="home-grid">
+      <button class="btn tile" data-go="zukan">📖<br>ずかん</button>
+      <button class="btn tile" data-go="garage">🎨<br>くるま</button>
+      <button class="btn tile" data-go="stamp">⛽<br>スタンプ</button>
+      <button class="btn tile" data-go="settings">⚙️<br>せってい</button>
+    </div>
+    <button class="btn small parent-btn" data-go="lock">おうちの人</button>
+  </section>
+
+  <!-- 地図 -->
+  <section id="scr-map" class="screen">
+    <div class="topbar"><button class="btn back" data-go="home">◀ もどる</button><h2>ちず</h2><span></span></div>
+    <div class="tabs" id="courseTabs"></div>
+    <div class="map" id="mapBody"></div>
+  </section>
+
+  <!-- ドライブ -->
+  <section id="scr-drive" class="screen drive">
+    <canvas id="driveCanvas"></canvas>
+    <div class="hud">
+      <button id="pauseBtn" class="hud-btn">⏸</button>
+      <div id="progress" class="progress"></div>
+      <div id="timer" class="timer">0.0</div>
+      <div id="qBanner" class="qbanner"><div class="qlabel"></div><div class="qtext"></div></div>
+      <div id="choiceL" class="choice left"><span class="arrow">◀</span><span class="ctext"></span></div>
+      <div id="choiceR" class="choice right"><span class="ctext"></span><span class="arrow">▶</span></div>
+      <div id="waitHint" class="wait-hint">どっちの みちに する？</div>
+      <div id="feedback" class="feedback"></div>
+      <div id="explain" class="explain"></div>
+      <div id="startMsg" class="start-msg"></div>
+      <button id="toggleBtn" class="toggle-btn">⇄<small>きりかえ</small></button>
+    </div>
+    <div id="pauseMenu" class="modal" hidden>
+      <div class="modal-box">
+        <h2>ひとやすみ</h2>
+        <button class="btn big" id="resumeBtn">つづける</button>
+        <button class="btn" id="quitBtn">ちずに もどる</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 結果 -->
+  <section id="scr-result" class="screen result">
+    <h1 id="resTitle">ゴール！</h1>
+    <div id="resStars" class="res-stars"></div>
+    <div class="res-nums">
+      <div><small>せいかい</small><b id="resCorrect"></b></div>
+      <div><small>タイム</small><b id="resTime"></b></div>
+    </div>
+    <div id="resBonus" class="res-bonus"></div>
+    <div id="resList" class="res-list"></div>
+    <button class="btn big" id="resNext">つぎへ</button>
+  </section>
+
+  <!-- ピットイン -->
+  <section id="scr-pitin" class="screen pitin">
+    <div class="topbar"><span></span><h2>🔧 ピットイン <small id="pitinCount"></small></h2><button class="btn small" id="pitinSkip">あとで</button></div>
+    <div class="pitin-body">
+      <div class="pitin-side">
+        <div id="pitinChar" class="pitin-char"></div>
+        <div id="pitinMsg" class="pitin-msg"></div>
+      </div>
+      <canvas id="pad" class="pad"></canvas>
+    </div>
+    <div class="pitin-btns">
+      <button class="btn" id="pitinClear">けす</button>
+      <button class="btn big" id="pitinCheck">できた！</button>
+      <button class="btn big" id="pitinNext" hidden>つぎ</button>
+    </div>
+  </section>
+
+  <!-- スタンプ -->
+  <section id="scr-stamp" class="screen">
+    <div class="topbar"><button class="btn back" data-go="home">◀ もどる</button><h2>⛽ ガソリンスタンド</h2><span></span></div>
+    <div id="stampMsg" class="stamp-msg"></div>
+    <div id="stampCard" class="stamp-card"></div>
+    <button class="btn big" data-go="map" id="stampToMap">ちずへ</button>
+  </section>
+
+  <!-- 図鑑 -->
+  <section id="scr-zukan" class="screen">
+    <div class="topbar"><button class="btn back" data-go="home">◀ もどる</button><h2>📖 かんじずかん</h2><span id="zukanCount"></span></div>
+    <div class="tabs" id="zukanTabs"></div>
+    <div id="zukanGrid" class="zukan-grid"></div>
+  </section>
+
+  <!-- 車の色 -->
+  <section id="scr-garage" class="screen">
+    <div class="topbar"><button class="btn back" data-go="home">◀ もどる</button><h2>🎨 くるまの いろ</h2><span id="garageStars"></span></div>
+    <div id="garageList" class="garage-list"></div>
+  </section>
+
+  <!-- 設定（子ども） -->
+  <section id="scr-settings" class="screen">
+    <div class="topbar"><button class="btn back" data-go="home">◀ もどる</button><h2>⚙️ せってい</h2><span></span></div>
+    <div id="settingsBody" class="settings"></div>
+  </section>
+
+  <!-- 保護者ロック -->
+  <section id="scr-lock" class="screen">
+    <div class="topbar"><button class="btn back" data-go="home">◀ もどる</button><h2>おうちの人の かくにん</h2><span></span></div>
+    <p class="lock-q" id="lockQ"></p>
+    <div class="lock-ans" id="lockAns"></div>
+    <div class="keypad" id="keypad"></div>
+  </section>
+
+  <!-- 保護者 -->
+  <section id="scr-parent" class="screen parent">
+    <div class="topbar"><button class="btn back" data-go="home">◀ とじる</button><h2>保護者メニュー</h2><span></span></div>
+    <div class="tabs" id="parentTabs">
+      <button data-tab="report" class="on">学習レポート</button>
+      <button data-tab="custom">出題する字を選ぶ</button>
+      <button data-tab="psettings">設定</button>
+    </div>
+    <div id="parentBody" class="parent-body"></div>
+  </section>
+
+  <div id="limitModal" class="modal" hidden>
+    <div class="modal-box">
+      <h2>🚗💤 きょうは ここまで！</h2>
+      <p>くるまは しゃこで おやすみ。また あした あそぼうね。</p>
+      <button class="btn" data-go="lock">おうちの人</button>
+    </div>
+  </div>
+  <div id="toast" class="toast"></div>
+</div>
+
+<script src="js/data.js"></script>
+<script src="js/learn.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/drive.js"></script>
+<script src="js/pitin.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>
