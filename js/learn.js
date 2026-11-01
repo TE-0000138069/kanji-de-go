@@ -18,7 +18,7 @@ function defaultState() {
     profile: null, // { nickname, grade }
     settings: {
       control: 'tap', oneHand: false, hand: 'right', slow: false,
-      se: 0.7, voice: true, textSize: 1, shake: true, bgSpeed: 1,
+      se: 0.7, bgm: 0.5, voice: true, textSize: 1, shake: true, bgSpeed: 1,
     },
     parent: { timeLimit: 0, breakEvery: 20, customKanji: [] },
     progress: {},  // 字 -> { read: {...}, write: {...} }

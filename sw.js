@@ -1,9 +1,9 @@
 // オフラインで使えるように、アプリのファイルをすべて保存しておく
 // ファイルを更新したら VERSION の数字を上げる
-const VERSION = 'kanji-de-go-v1';
+const VERSION = 'kanji-de-go-v2';
 const FILES = [
   './', './index.html', './style.css', './manifest.webmanifest',
-  './js/data.js', './js/learn.js', './js/audio.js', './js/drive.js', './js/pitin.js', './js/ui.js',
+  './js/data.js', './js/learn.js', './js/audio.js', './js/scenes.js', './js/drive.js', './js/pitin.js', './js/ui.js',
   './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png',
 ];
 

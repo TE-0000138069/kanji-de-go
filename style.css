@@ -203,3 +203,14 @@ table.list td.k { font-family: var(--font); font-size: 24px; }
 .pitin-side { width: 320px; }
 .pitin-msg { font-size: 1em; }
 .res-nums small { font-size: 0.8em; color: #667; margin-bottom: 2px; }
+
+/* カウントダウン・れんぞく正解・エリア名 */
+.start-msg.pop { animation: countPop 0.6s ease-out; }
+@keyframes countPop { 0% { transform: translateX(-50%) scale(2.4); opacity: 0; } 40% { transform: translateX(-50%) scale(0.9); opacity: 1; } 100% { transform: translateX(-50%) scale(1); } }
+.combo { position: absolute; top: max(80px, calc(env(safe-area-inset-top) + 70px)); right: max(16px, env(safe-area-inset-right)); font-size: calc(30px * var(--ts)); font-weight: bold; color: #fff; text-shadow: 0 3px 0 #e8590c, 0 0 12px rgba(255,140,0,0.8); opacity: 0; transition: opacity 0.2s; }
+.combo.on { opacity: 1; animation: comboPop 0.5s ease-out; }
+.combo.big { font-size: calc(40px * var(--ts)); text-shadow: 0 3px 0 #c2255c, 0 0 18px rgba(255,80,200,0.9); }
+@keyframes comboPop { 0% { transform: scale(1.8) rotate(-8deg); } 60% { transform: scale(0.95); } 100% { transform: scale(1); } }
+.zone-name { position: absolute; top: max(70px, calc(env(safe-area-inset-top) + 60px)); left: max(16px, env(safe-area-inset-left)); background: rgba(255,255,255,0.9); color: var(--ink); border-radius: 999px; padding: 6px 18px; font-size: calc(20px * var(--ts)); font-weight: bold; box-shadow: 0 4px 0 rgba(0,0,0,0.15); opacity: 0; transform: translateX(-30px); transition: opacity 0.4s, transform 0.4s; }
+.zone-name.on { opacity: 1; transform: translateX(0); }
+.res-stars span.pop { display: inline-block; animation: comboPop 0.5s ease-out; }

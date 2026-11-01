@@ -10,6 +10,7 @@ const $$ = sel => Array.from(document.querySelectorAll(sel));
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const stars = (n, max = 3) => '★'.repeat(n) + '<span class="off">' + '★'.repeat(max - n) + '</span>';
 
+const MENU_MUSIC = ['home', 'map', 'zukan', 'garage', 'stamp', 'settings', 'setup', 'pitin'];
 const ui = { course: 'machi', zukanCourse: 'machi', parentTab: 'report', current: null, drive: null, sessionPlay: 0 };
 
 function applyTextSize() {
@@ -28,6 +29,8 @@ function show(id, ...args) {
   $$('.screen').forEach(s => s.classList.remove('on'));
   $('#scr-' + id).classList.add('on');
   ui.current = id;
+  if (MENU_MUSIC.includes(id)) KG.music.play('menu');
+  else if (id === 'parent' || id === 'lock') KG.music.stop(0.5);
   const r = renderers[id];
   if (r) r(...args);
 }
@@ -101,7 +104,13 @@ const renderers = {
     const { results, elapsed, starsN, isBest, noMiss } = data;
     const correct = results.filter(r => r.result === 'correct').length;
     $('#resTitle').textContent = noMiss ? 'ノーミス ゴール！' : 'ゴール！';
-    $('#resStars').innerHTML = stars(starsN);
+    $('#resStars').innerHTML = '<span class="off">★★★</span>';
+    for (let i = 0; i < starsN; i++) {
+      setTimeout(() => {
+        $('#resStars').innerHTML = Array.from({ length: 3 }, (_, j) => j <= i ? `<span class="${j === i ? 'pop' : ''}">★</span>` : '<span class="off">★</span>').join('');
+        KG.audio.star(i);
+      }, 500 + i * 450);
+    }
     $('#resCorrect').textContent = `${correct} / ${results.length}`;
     $('#resTime').textContent = `${elapsed.toFixed(1)}びょう`;
     const bonus = [];
@@ -173,6 +182,7 @@ const renderers = {
       { key: 'hand', label: 'かたてボタンの ばしょ', opts: [['left', 'ひだり'], ['right', 'みぎ']] },
       { key: 'slow', label: 'ゆっくりモード', opts: [[false, 'なし'], [true, 'あり']], sub: 'わかれみちの てまえで とまって まってくれる' },
       { key: 'grade', label: 'なんねんせい？（はやさが かわるよ）', opts: [1, 2, 3, 4, 5, 6].map(g => [g, String(g)]) },
+      { key: 'bgm', label: 'BGM（おんがく）', opts: [[0, 'なし'], [0.3, 'ちいさい'], [0.5, 'ふつう'], [0.8, 'おおきい']] },
       { key: 'se', label: 'こうかおん', opts: [[0, 'なし'], [0.4, 'ちいさい'], [0.7, 'ふつう'], [1, 'おおきい']] },
       { key: 'voice', label: 'よみあげ', opts: [[true, 'あり'], [false, 'なし']] },
       { key: 'textSize', label: 'もじの おおきさ', opts: [[1, 'ふつう'], [1.2, 'おおきい'], [1.4, 'とても おおきい']] },
@@ -196,7 +206,7 @@ const renderers = {
       if (r.key === 'grade') KG.state.profile.grade = v;
       else s[r.key] = v;
       if (r.key === 'textSize') applyTextSize();
-      if (r.key === 'se') KG.audio.select();
+      if (r.key === 'se' || r.key === 'bgm') { KG.audio.applyVolumes(); if (r.key === 'se') KG.audio.select('R'); }
       KG.save();
       renderers.settings();
     }));
@@ -383,10 +393,12 @@ function startDrive(stage) {
   if (KG.state.settings.control === 'tilt' && !tiltGranted) requestTilt(); // タップの流れの中で許可をもらう
 
   show('drive');
+  KG.music.play(stage.course.id);
   const hud = makeHud(items);
   ui.drive = new KG.Drive({
     canvas: $('#driveCanvas'),
     course: stage.course,
+    stageIndex: stage.kind === 'normal' ? +stage.id.split('-')[1] : Math.floor(Math.random() * 5),
     items,
     hud,
     onFinish: (results, elapsed) => finishDrive(stage, results, elapsed),
@@ -402,13 +414,33 @@ function makeHud(items) {
   const dots = prog.querySelectorAll('i');
   const banner = $('#qBanner'), cL = $('#choiceL'), cR = $('#choiceR');
   const fb = $('#feedback'), ex = $('#explain'), sm = $('#startMsg'), wh = $('#waitHint');
+  const cb = $('#combo'), zn = $('#zoneName');
   let lastWait = false;
-  [banner, cL, cR, fb, ex, sm, wh].forEach(el => el.classList.remove('on'));
+  [banner, cL, cR, fb, ex, sm, wh, cb, zn].forEach(el => el.classList.remove('on'));
   return {
+    count(text) {
+      sm.textContent = text;
+      sm.classList.add('on');
+      sm.classList.remove('pop'); void sm.offsetWidth; sm.classList.add('pop');
+    },
+    combo(n) {
+      cb.classList.remove('on', 'big');
+      if (n >= 2) {
+        void cb.offsetWidth;
+        cb.textContent = n >= 5 ? `🌈 ${n}れんぞく！ すごい！` : `🔥 ${n}れんぞく！`;
+        cb.classList.add('on');
+        if (n >= 5) cb.classList.add('big');
+      }
+    },
+    zone(name) {
+      zn.textContent = `📍 ${name}`;
+      zn.classList.add('on');
+      clearTimeout(zn.timer);
+      zn.timer = setTimeout(() => zn.classList.remove('on'), 3500);
+    },
     phase(name, d) {
       dots.forEach((x, i) => x.classList.toggle('now', i === d.idx && name !== 'goal'));
-      if (name === 'start') { sm.textContent = 'よーい… スタート！'; sm.classList.add('on'); }
-      if (name === 'cruise') sm.classList.remove('on');
+      if (name === 'cruise') sm.classList.remove('on', 'pop');
       if (name === 'question') {
         const it = d.item, q = it.q;
         banner.querySelector('.qlabel').textContent = q.type === 'reading' ? 'よみは どっち？' : 'かんじは どっち？';
@@ -419,7 +451,7 @@ function makeHud(items) {
         [banner, cL, cR].forEach(c => c.classList.add('on'));
       }
       if (name === 'after') [banner, cL, cR, wh].forEach(c => c.classList.remove('on'));
-      if (name === 'goal') { sm.textContent = '🏁 ゴール！'; sm.classList.add('on'); }
+      if (name === 'goal') { this.count('🏁 ゴール！'); cb.classList.remove('on'); }
     },
     selected(side) {
       cL.classList.toggle('sel', side === 'L');
