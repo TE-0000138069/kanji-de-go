@@ -10,7 +10,7 @@ const $$ = sel => Array.from(document.querySelectorAll(sel));
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const stars = (n, max = 3) => '★'.repeat(n) + '<span class="off">' + '★'.repeat(max - n) + '</span>';
 
-const MENU_MUSIC = ['home', 'map', 'zukan', 'garage', 'stamp', 'settings', 'setup', 'pitin'];
+const MENU_MUSIC = ['home', 'map', 'zukan', 'garage', 'stamp', 'settings', 'setup', 'pitin', 'profiles'];
 const ui = { course: 'machi', zukanCourse: 'machi', parentTab: 'report', current: null, drive: null, sessionPlay: 0 };
 
 function applyTextSize() {
@@ -41,7 +41,7 @@ document.addEventListener('click', e => {
   KG.audio.unlock();
   const go = b.dataset.go;
   $('#limitModal').hidden = true;
-  if (go === 'start') show(KG.state.profile ? 'home' : 'setup');
+  if (go === 'start') show(!KG.profiles.list.length ? 'setup' : KG.profiles.list.length > 1 || !KG.state.profile ? 'profiles' : 'home');
   else show(go);
 });
 
@@ -51,19 +51,43 @@ const renderers = {
     $$('#setupGrade button').forEach(b => {
       b.onclick = () => { $$('#setupGrade button').forEach(x => x.classList.remove('on')); b.classList.add('on'); };
     });
+    $('#setupName').value = '';
+    $('#setupCancel').hidden = !KG.profiles.list.length;
+    $('#setupCancel').onclick = () => show('profiles');
     $('#setupOk').onclick = () => {
       const name = $('#setupName').value.trim() || 'ドライバー';
       const grade = +($('#setupGrade .on') || { dataset: { v: 2 } }).dataset.v;
-      KG.state.profile = { nickname: name, grade };
-      KG.setGrade(grade);
-      KG.state.settings.control = 'tap'; // 傾け操作は、設定画面で許可してから使う
-      KG.save();
+      KG.createProfile(name, grade);
+      resetUiForProfile();
       show('home');
     };
   },
 
+  // だれが あそぶ？
+  profiles() {
+    const list = KG.profiles.list;
+    $('#profileList').innerHTML = list.map(x => `
+      <button class="profile-card ${x.id === KG.profiles.active ? 'now' : ''}" data-id="${x.id}">
+        <span class="pc-car" style="--c:${x.color || '#ff5a4f'}"></span>
+        <b>${esc(x.name)}</b>
+        <small>${x.grade}ねんせい</small>
+        <small><i class="ico ico-star"></i> ${x.stars || 0}　<i class="ico ico-fuel"></i> ${x.stamps || 0}</small>
+      </button>`).join('') + `
+      <button class="profile-card add" id="profileAdd"><span class="pc-plus">＋</span><b>あたらしく ふやす</b><small>きょうだいを ついか</small></button>`;
+    $$('#profileList .profile-card[data-id]').forEach(b => (b.onclick = () => {
+      KG.switchProfile(b.dataset.id);
+      resetUiForProfile();
+      KG.audio.select('R');
+      toast(`${KG.state.profile.nickname} さん、いらっしゃい！`);
+      show('home');
+    }));
+    $('#profileAdd').onclick = () => show('setup');
+  },
+
   home() {
     const p = KG.state.profile;
+    if (!p) { show(KG.profiles.list.length ? 'profiles' : 'setup'); return; }
+    $('#userBtn').innerHTML = `👤 ${esc(p.nickname)}　<small>かえる</small>`;
     $('#homeHello').textContent = `${p.nickname} さん（${KG.grade}ねんせい）、どこへ いく？`;
     $('#homeStars').textContent = `⭐ ${KG.totalStars()}`;
     $('#homeMastered').textContent = `📖 おぼえた字 ${KG.allChars.filter(KG.isMastered).length} / ${KG.allChars.length}`;
@@ -456,6 +480,16 @@ function showReward() {
   $('#rewardLater').onclick = () => done(false);
 }
 
+// ユーザーを切りかえたら、画面の状態（選んでいたコースなど）を元にもどす
+function resetUiForProfile() {
+  ui.course = 'machi';
+  ui.zukanCourse = 'machi';
+  ui.garageSlot = 'paint';
+  ui.customGrade = null;
+  ui.drillGrade = null;
+  applyTextSize();
+}
+
 // ---------------- 保護者メニュー ----------------
 const parentTabs = {
   report() {
@@ -629,16 +663,48 @@ const parentTabs = {
     const p = KG.state.parent;
     const opt = (vals, cur, unit) => vals.map(v => `<option value="${v}" ${v === cur ? 'selected' : ''}>${v ? v + unit : 'なし'}</option>`).join('');
     $('#parentBody').innerHTML = `
-      <div class="card"><h3>利用時間</h3>
+      <div class="card"><h3>ユーザー（きょうだい）</h3>
+        <p class="note">利用時間・学習記録は、ユーザーごとです（いまのユーザー：<b>${esc(KG.state.profile.nickname)}</b>）。ドリルの順番と例文は、全員で共通です。</p>
+        ${KG.profiles.list.map(x => `<div class="prow">
+          <input class="pname" data-id="${x.id}" value="${esc(x.name)}" maxlength="10"> ${x.grade}年生
+          <button class="btn small" data-rename="${x.id}">名前を変える</button>
+          <button class="btn small danger" data-del="${x.id}">このユーザーを消す</button></div>`).join('')}
+      </div>
+      <div class="card"><h3>利用時間（${esc(KG.state.profile.nickname)}）</h3>
         <div class="prow">1日の上限 <select id="pLimit">${opt([0, 15, 30, 45, 60], p.timeLimit, '分')}</select></div>
         <div class="prow">休憩の案内 <select id="pBreak">${opt([0, 15, 20, 30], p.breakEvery, '分ごと')}</select></div>
         <div class="prow"><button class="btn small" id="pAllow">今日だけ上限を解除する</button> ${p.allowDay === KG.today() ? '（今日は解除中）' : ''}</div>
       </div>
       <div class="card"><h3>データ</h3>
         <div class="prow"><button class="btn small" id="pExport">学習データを書き出す（JSON）</button></div>
-        <div class="prow"><button class="btn small danger" id="pReset">すべての学習記録を削除する</button></div>
+        <div class="prow"><button class="btn small danger" id="pReset">${esc(KG.state.profile.nickname)} さんの学習記録を削除する</button></div>
         <p class="note">データはこのiPadのブラウザの中だけに保存されています。Safariの「履歴とWebサイトデータを消去」をすると消えるので、ときどき書き出しておくと安心です。</p>
       </div>`;
+    $$('[data-rename]').forEach(b => (b.onclick = () => {
+      const id = b.dataset.rename;
+      const name = (document.querySelector(`.pname[data-id="${id}"]`).value || '').trim();
+      if (!name) return;
+      const x = KG.profiles.list.find(y => y.id === id);
+      x.name = name;
+      if (id === KG.profiles.active) KG.state.profile.nickname = name;
+      else {
+        // ほかのユーザーの記録の中の名前も変える
+        const key = 'kanjiDeGo.v1:' + id;
+        try { const st = JSON.parse(localStorage.getItem(key)); st.profile.nickname = name; localStorage.setItem(key, JSON.stringify(st)); } catch (e) { /* 記録がまだない */ }
+      }
+      KG.save();
+      toast('名前を変えました');
+      parentTabs.psettings();
+    }));
+    $$('[data-del]').forEach(b => (b.onclick = () => {
+      const x = KG.profiles.list.find(y => y.id === b.dataset.del);
+      if (!confirm(`「${x.name}」のユーザーと、すべての学習記録を消します。元にはもどせません。よろしいですか？`)) return;
+      KG.deleteProfile(x.id);
+      resetUiForProfile();
+      if (!KG.profiles.list.length) { show('setup'); return; }
+      toast(`「${x.name}」を消しました`);
+      parentTabs.psettings();
+    }));
     $('#pLimit').onchange = e => { p.timeLimit = +e.target.value; KG.save(); };
     $('#pBreak').onchange = e => { p.breakEvery = +e.target.value; KG.save(); };
     $('#pAllow').onclick = () => { p.allowDay = KG.today(); KG.save(); parentTabs.psettings(); toast('今日の上限を解除しました'); };
@@ -646,14 +712,15 @@ const parentTabs = {
       const blob = new Blob([JSON.stringify(KG.state, null, 1)], { type: 'application/json' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `kanji-de-go-${KG.today()}.json`;
+      a.download = `kanji-de-go-${KG.state.profile.nickname}-${KG.today()}.json`;
       a.click();
     };
     $('#pReset').onclick = () => {
-      if (!confirm('すべての学習記録を削除します。よろしいですか？')) return;
+      if (!confirm(`${KG.state.profile.nickname} さんの学習記録をすべて削除します。よろしいですか？`)) return;
       KG.resetAll();
-      applyTextSize();
-      show('title');
+      resetUiForProfile();
+      toast('学習記録を削除しました');
+      parentTabs.psettings();
     };
   },
 };

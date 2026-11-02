@@ -27,6 +27,12 @@
     <div class="credit">漢字でGO！ v0.5</div>
   </section>
 
+  <!-- だれが あそぶ？ -->
+  <section id="scr-profiles" class="screen profiles">
+    <h1>だれが あそぶ？</h1>
+    <div id="profileList" class="profile-list"></div>
+  </section>
+
   <!-- はじめての設定 -->
   <section id="scr-setup" class="screen">
     <h1>はじめまして！</h1>
@@ -40,11 +46,15 @@
       </label>
       <p class="note">えらんだ がくねんの かんじが でるよ。あとから「せってい」で かえられるよ。</p>
     </div>
-    <button class="btn big" id="setupOk">はじめる</button>
+    <div class="row-btns">
+      <button class="btn big" id="setupOk">はじめる</button>
+      <button class="btn" id="setupCancel" hidden>やめる</button>
+    </div>
   </section>
 
   <!-- ホーム（車庫） -->
   <section id="scr-home" class="screen home">
+    <button class="btn small user-btn" data-go="profiles" id="userBtn"></button>
     <div class="home-head">
       <div id="homeHello" class="hello"></div>
       <div class="home-stats"><span id="homeStars"></span><span id="homeMastered"></span></div>

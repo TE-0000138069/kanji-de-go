@@ -1,7 +1,9 @@
 // 保存と学習の仕組み（間隔反復・にがてリスト・問題の選び方）
 window.KG = window.KG || {};
 
-const STORE_KEY = 'kanjiDeGo.v1';
+const STORE_KEY = 'kanjiDeGo.v1';                 // v1.0まで（1人分）。v1.1からは STORE_KEY + ':' + ユーザーID
+const PROFILES_KEY = 'kanjiDeGo.profiles';         // ユーザーの一覧 { active, list: [{ id, name, grade, color, stars }] }
+const SHARED_KEY = 'kanjiDeGo.shared';             // 兄弟で共通のもの（ドリルの順番と例文）
 KG.INTERVALS = [0, 1, 3, 7, 14, 30]; // 段階ごとの、次の復習までの日数
 KG.CAR_COLORS = [
   { id: 'red', name: 'あか', color: '#ff5a4f', stars: 0 },
@@ -56,34 +58,119 @@ function defaultState() {
   };
 }
 
-KG.load = function () {
-  try {
-    const raw = localStorage.getItem(STORE_KEY);
-    if (raw) {
-      const s = JSON.parse(raw);
-      const d = defaultState();
-      KG.state = { ...d, ...s, settings: { ...d.settings, ...s.settings }, parent: { ...d.parent, ...s.parent }, carParts: { ...KG.CAR_DEFAULT, ...(s.carParts || {}) } };
-      // v0.2までは2年生だけで、ステージIDに学年がなかった
-      for (const k of Object.keys(KG.state.stages)) {
-        if (/^(machi|umi|yama)-/.test(k)) { KG.state.stages['g2-' + k] = KG.state.stages[k]; delete KG.state.stages[k]; }
-      }
-      if (KG.setGrade) KG.setGrade((KG.state.profile && KG.state.profile.grade) || 2);
-      return;
+// ---- ユーザー（兄弟ごとの記録）----
+KG.profiles = { active: null, list: [] };
+
+function readJSON(key, fallback) {
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch (e) { return fallback; }
+}
+
+// ユーザーの一覧を読む。v1.0までの1人分の記録は、1人目のユーザーとして引きつぐ
+KG.loadProfiles = function () {
+  KG.profiles = readJSON(PROFILES_KEY, null) || { active: null, list: [] };
+  if (!KG.profiles.list.length) {
+    const old = readJSON(STORE_KEY, null);
+    if (old && old.profile) {
+      const id = 'p1';
+      localStorage.setItem(STORE_KEY + ':' + id, JSON.stringify(old));
+      KG.profiles = { active: id, list: [{ id, name: old.profile.nickname, grade: old.profile.grade }] };
+      localStorage.setItem(PROFILES_KEY, JSON.stringify(KG.profiles));
+      // ドリルの順番と例文は、兄弟で共通にする
+      const par = old.parent || {};
+      localStorage.setItem(SHARED_KEY, JSON.stringify({ drillOrder: par.drillOrder || {}, drillExamples: par.drillExamples || {} }));
+      localStorage.removeItem(STORE_KEY);
     }
-  } catch (e) { console.warn(e); }
-  KG.state = defaultState();
-  if (KG.setGrade) KG.setGrade(2);
+  }
+  if (KG.profiles.active && !KG.profiles.list.some(x => x.id === KG.profiles.active)) KG.profiles.active = null;
+};
+
+function stateFrom(s) {
+  const d = defaultState();
+  const st = { ...d, ...s, settings: { ...d.settings, ...s.settings }, parent: { ...d.parent, ...s.parent }, carParts: { ...KG.CAR_DEFAULT, ...(s.carParts || {}) } };
+  // v0.2までは2年生だけで、ステージIDに学年がなかった
+  for (const k of Object.keys(st.stages)) {
+    if (/^(machi|umi|yama)-/.test(k)) { st.stages['g2-' + k] = st.stages[k]; delete st.stages[k]; }
+  }
+  return st;
+}
+
+// いま選ばれているユーザーの記録を読む（ユーザーがいなければ、空の記録）
+KG.load = function () {
+  KG.loadProfiles();
+  const id = KG.profiles.active;
+  const raw = id ? readJSON(STORE_KEY + ':' + id, null) : null;
+  KG.state = raw ? stateFrom(raw) : defaultState();
+  // 兄弟で共通のドリルの順番と例文
+  const shared = readJSON(SHARED_KEY, null);
+  if (shared) {
+    KG.state.parent.drillOrder = shared.drillOrder || {};
+    KG.state.parent.drillExamples = shared.drillExamples || {};
+  }
+  if (KG.setGrade) KG.setGrade((KG.state.profile && KG.state.profile.grade) || 2);
 };
 
 KG.save = function () {
   const s = KG.state;
+  const id = KG.profiles.active;
+  if (!id) return; // ユーザーを作る前は保存しない
   if (s.attempts.length > 5000) s.attempts = s.attempts.slice(-5000);
-  localStorage.setItem(STORE_KEY, JSON.stringify(s));
+  localStorage.setItem(STORE_KEY + ':' + id, JSON.stringify(s));
+  localStorage.setItem(SHARED_KEY, JSON.stringify({ drillOrder: s.parent.drillOrder || {}, drillExamples: s.parent.drillExamples || {} }));
+  // 「だれが あそぶ？」画面で見せる情報
+  const me = KG.profiles.list.find(x => x.id === id);
+  if (me && s.profile) {
+    me.name = s.profile.nickname;
+    me.grade = s.profile.grade;
+    me.color = (KG.CAR_COLORS.find(c => c.id === s.carColor) || KG.CAR_COLORS[0]).color;
+    me.stars = Object.values(s.stages).reduce((a, x) => a + (x.stars || 0), 0);
+    me.stamps = s.stamps.length;
+  }
+  localStorage.setItem(PROFILES_KEY, JSON.stringify(KG.profiles));
 };
 
-KG.resetAll = function () {
-  localStorage.removeItem(STORE_KEY);
+// ユーザーを切りかえる
+KG.switchProfile = function (id) {
+  KG.save();
+  KG.profiles.active = id;
+  localStorage.setItem(PROFILES_KEY, JSON.stringify(KG.profiles));
+  KG.load();
+};
+
+// ユーザーを新しく作って、そのユーザーにする
+KG.createProfile = function (name, grade) {
+  if (KG.profiles.active) KG.save();
+  let n = KG.profiles.list.length + 1;
+  while (KG.profiles.list.some(x => x.id === 'p' + n)) n++;
+  const id = 'p' + n;
+  KG.profiles.list.push({ id, name, grade });
+  KG.profiles.active = id;
+  const shared = readJSON(SHARED_KEY, null);
   KG.state = defaultState();
+  KG.state.profile = { nickname: name, grade };
+  if (shared) { KG.state.parent.drillOrder = shared.drillOrder || {}; KG.state.parent.drillExamples = shared.drillExamples || {}; }
+  if (KG.setGrade) KG.setGrade(grade);
+  KG.save();
+};
+
+// ユーザーを消す（そのユーザーの記録もすべて消える）
+KG.deleteProfile = function (id) {
+  localStorage.removeItem(STORE_KEY + ':' + id);
+  KG.profiles.list = KG.profiles.list.filter(x => x.id !== id);
+  if (KG.profiles.active === id) KG.profiles.active = KG.profiles.list.length ? KG.profiles.list[0].id : null;
+  localStorage.setItem(PROFILES_KEY, JSON.stringify(KG.profiles));
+  KG.load();
+};
+
+// いまのユーザーの学習記録だけを消す（名前と学年は残す）
+KG.resetAll = function () {
+  const keep = KG.state.profile;
+  const par = KG.state.parent;
+  KG.state = defaultState();
+  KG.state.profile = keep;
+  KG.state.parent.drillOrder = par.drillOrder;
+  KG.state.parent.drillExamples = par.drillExamples;
+  if (KG.setGrade) KG.setGrade((keep && keep.grade) || 2);
+  KG.save();
 };
 
 // ---- 日付 ----
