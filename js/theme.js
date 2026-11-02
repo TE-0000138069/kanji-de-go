@@ -85,6 +85,64 @@ window.KG = window.KG || {};
     root.setProperty(`--ico-${name}`, `url(${url})`);
   }
 
+  // ---- タイトルのロゴ（ブロックの模様で、立体に見える文字）----
+  function drawLogo() {
+    const cv = document.getElementById('titleLogo');
+    if (!cv) return;
+    const runs = [['漢字で', 'stone', '#4a4d52'], ['GO！', 'gold', '#8a5a00']];
+    const F = 150, depth = 14, pad = 24;
+    const font = `${F}px "DotGothic16", sans-serif`;
+    const m = document.createElement('canvas').getContext('2d');
+    m.font = font;
+    const widths = runs.map(r => m.measureText(r[0]).width);
+    const gap = F * 0.12;
+    const Wd = Math.ceil(widths.reduce((a, b) => a + b, 0) + gap + pad * 2 + depth);
+    const Hd = Math.ceil(F * 1.25 + pad * 2 + depth);
+    cv.width = Wd; cv.height = Hd;
+    const g = cv.getContext('2d');
+    g.imageSmoothingEnabled = false;
+    // 字の形だけの画像を、色をつけて作る
+    const shape = (text, fill) => {
+      const c = document.createElement('canvas'); c.width = Wd; c.height = Hd;
+      const x = c.getContext('2d');
+      x.font = font; x.textBaseline = 'middle';
+      x.fillStyle = '#000'; x.fillText(text, 0, Hd / 2);
+      x.globalCompositeOperation = 'source-in';
+      x.fillStyle = fill; x.fillRect(0, 0, Wd, Hd);
+      return c;
+    };
+    const pattern = img => {
+      const c = document.createElement('canvas'); c.width = c.height = 16 * 6;
+      const x = c.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(img, 0, 0, c.width, c.height);
+      return g.createPattern(c, 'repeat');
+    };
+    let x0 = pad;
+    runs.forEach(([text, texName, side], i) => {
+      const img = texImgs[texName];
+      const outline = shape(text, '#1b1b1b');
+      const sideC = shape(text, side);
+      const face = shape(text, pattern(img));
+      // ふち（黒）→ 側面（ずらして重ねる）→ 表（ブロックの模様）
+      for (const [dx, dy] of [[-5, 0], [5, 0], [0, -5], [0, 5], [-4, -4], [4, 4], [-4, 4], [4, -4]]) g.drawImage(outline, x0 + dx + depth, dy + depth - Hd * 0.04);
+      for (const [dx, dy] of [[-5, 0], [5, 0], [0, -5], [0, 5]]) g.drawImage(outline, x0 + dx, dy - Hd * 0.04);
+      for (let d = depth; d > 0; d--) g.drawImage(sideC, x0 + d, d - Hd * 0.04);
+      g.drawImage(face, x0, -Hd * 0.04);
+      x0 += widths[i] + gap;
+    });
+  }
+  const texImgs = {};
+  const texReady = Promise.all(['stone', 'gold'].map(k => new Promise(res => {
+    const im = new Image(); im.onload = res; im.onerror = res; im.src = T[k]; texImgs[k] = im;
+  })));
+  const fontReady = document.fonts && document.fonts.load ? document.fonts.load('150px "DotGothic16"').catch(() => {}) : Promise.resolve();
+  Promise.all([texReady, fontReady]).then(drawLogo);
+
+  // タイトルの ななめの ひとこと（ひらくたびに かわる）
+  const SPLASH = ['かんじで ドライブ！', '1026じ はいってるよ！', 'かきじゅんも れんしゅう！', 'コインを あつめよう！', 'ゴーストに かてるかな？',
+    'ぶしゅカードを あつめよう！', 'モンスターを たいじ！', 'きょうの ミッション！', 'にがてな字も へっちゃら！', 'めざせ レジェンド！'];
+  const sp = document.getElementById('titleSplash');
+  if (sp) sp.textContent = SPLASH[Math.floor(Math.random() * SPLASH.length)];
+
   // ---- メニューのうしろの景色（ドット絵）----
   const cv = document.getElementById('menuBg');
   if (!cv) return;

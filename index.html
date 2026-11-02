@@ -21,10 +21,18 @@
 
   <!-- タイトル -->
   <section id="scr-title" class="screen title">
-    <div class="logo"><span class="l1">漢字で</span><span class="l2">GO！</span></div>
-    <div class="tagline">かんじで ドライブ！</div>
+    <div class="title-main">
+      <canvas id="titleLogo" class="title-logo" role="img" aria-label="漢字でGO！"></canvas>
+      <div class="splash" id="titleSplash">かんじで ドライブ！</div>
+    </div>
+    <div class="title-cubes" aria-hidden="true">
+      <div class="cube-wrap"><div class="cube t-grass"><i class="f fr">車</i><i class="f bk">車</i><i class="f rt">車</i><i class="f lf">車</i><i class="f tp"></i></div></div>
+      <div class="cube-wrap"><div class="cube t-stone"><i class="f fr">走</i><i class="f bk">走</i><i class="f rt">走</i><i class="f lf">走</i><i class="f tp"></i></div></div>
+      <div class="cube-wrap"><div class="cube t-gold"><i class="f fr">字</i><i class="f bk">字</i><i class="f rt">字</i><i class="f lf">字</i><i class="f tp"></i></div></div>
+      <div class="cube-wrap"><div class="cube t-planks"><i class="f fr">道</i><i class="f bk">道</i><i class="f rt">道</i><i class="f lf">道</i><i class="f tp"></i></div></div>
+    </div>
     <button class="btn big start-btn" data-go="start">▶ スタート</button>
-    <div class="credit">漢字でGO！ v0.5</div>
+    <div class="credit">漢字でGO！ v1.5</div>
   </section>
 
   <!-- だれが あそぶ？ -->
@@ -54,7 +62,7 @@
 
   <!-- ホーム（車庫） -->
   <section id="scr-home" class="screen home">
-    <button class="btn small user-btn" data-go="profiles" id="userBtn"></button>
+    <div class="home-bar"><button class="btn small user-btn" data-go="profiles" id="userBtn"></button></div>
     <div class="home-head">
       <div id="homeHello" class="hello"></div>
       <div class="home-stats"><span id="homeStars"></span><span id="homeMastered"></span></div>
@@ -68,7 +76,7 @@
       <button class="btn tile" data-go="stamp"><i class="ico ico-fuel"></i>スタンプ</button>
       <button class="btn tile" data-go="settings"><i class="ico ico-gear"></i>せってい</button>
     </div>
-    <button class="btn small parent-btn" data-go="lock"><i class="ico ico-house"></i> おうちの人</button>
+    <div class="home-foot"><button class="btn small parent-btn" data-go="lock"><i class="ico ico-house"></i> おうちの人</button></div>
   </section>
 
   <!-- 地図 -->
