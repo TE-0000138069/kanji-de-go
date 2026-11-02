@@ -58,7 +58,9 @@
     <div class="home-head">
       <div id="homeHello" class="hello"></div>
       <div class="home-stats"><span id="homeStars"></span><span id="homeMastered"></span></div>
+      <div id="homeRank" class="home-rank"></div>
     </div>
+    <div id="homeDaily" class="home-daily"></div>
     <button class="btn huge drive-btn" data-go="map"><i class="ico ico-car"></i> ドライブに でかける</button>
     <div class="home-grid">
       <button class="btn tile" data-go="zukan"><i class="ico ico-book"></i>ずかん</button>
@@ -92,6 +94,10 @@
       <div id="coinHud" class="coin-hud"><i class="ico ico-coin"></i> <b>0</b></div>
       <div id="eventBanner" class="event-banner"></div>
       <div id="missionCard" class="mission-card"></div>
+      <div id="navBubble" class="nav-bubble"><i class="ico ico-navi"></i><span></span></div>
+      <div id="tipBox" class="tip-box"></div>
+      <div id="ghostHud" class="ghost-hud" hidden></div>
+      <div id="bossBar" class="boss-bar" hidden><span>🏁</span><div class="bb-track"><i class="bb-car"></i><i class="bb-mon"></i></div><span>モンスター</span></div>
       <div id="qBanner" class="qbanner"><div class="qlabel"></div><div class="qtext"></div><div class="qtimer"><i></i></div></div>
       <div id="choiceL" class="choice left"><span class="arrow">◀</span><span class="ctext"></span></div>
       <div id="choiceR" class="choice right"><span class="ctext"></span><span class="arrow">▶</span></div>
@@ -133,6 +139,7 @@
     </div>
     <div id="resBonus" class="res-bonus"></div>
     <div id="resMissions" class="res-missions"></div>
+    <div id="resExtra" class="res-extra"></div>
     <div id="resList" class="res-list"></div>
     <button class="btn big" id="resNext">つぎへ</button>
   </section>
@@ -150,6 +157,9 @@
     <div class="pitin-body">
       <div class="pitin-side">
         <div id="pitinChar" class="pitin-char"></div>
+        <canvas id="pitinAnim" class="pitin-anim" width="360" height="360" hidden></canvas>
+        <button class="btn small" id="pitinReplay" hidden>▶ もういちど 見る</button>
+        <div id="pitinRepair" class="repair" hidden><div class="repair-bar"><i id="pitinRepairBar"></i></div><span id="pitinRepairTxt"></span></div>
         <div id="pitinMsg" class="pitin-msg"></div>
       </div>
       <canvas id="pad" class="pad"></canvas>
@@ -236,6 +246,25 @@
       </div>
     </div>
   </div>
+  <div id="boxModal" class="modal" hidden>
+    <div class="modal-box reward-box">
+      <h2>きょうの ミッション たっせい！</h2>
+      <button class="mystery-box" id="boxOpen"><i class="ico ico-box"></i></button>
+      <p id="boxMsg" class="reward-name">はこを タップして あけてみよう！</p>
+      <button class="btn big" id="boxClose" hidden>やったね！</button>
+    </div>
+  </div>
+  <div id="strokeModal" class="modal" hidden>
+    <div class="modal-box stroke-box">
+      <h2 id="smTitle"></h2>
+      <canvas id="smCanvas" class="pitin-anim" width="360" height="360"></canvas>
+      <p id="smInfo" class="sm-info"></p>
+      <div class="row-btns">
+        <button class="btn" id="smReplay">▶ もういちど</button>
+        <button class="btn big" id="smClose">とじる</button>
+      </div>
+    </div>
+  </div>
   <div id="toast" class="toast"></div>
 </div>
 
@@ -252,6 +281,9 @@
 <script src="js/scenes.js"></script>
 <script src="js/drive3d.js"></script>
 <script src="js/drive.js"></script>
+<script src="data/kanjivg.js"></script>
+<script src="js/radicals.js"></script>
+<script src="js/strokes.js"></script>
 <script src="js/pitin.js"></script>
 <script src="js/theme.js"></script>
 <script src="js/mapview.js"></script>

@@ -1,0 +1,12 @@
+data/kanjivg.js は KanjiVG のデータ（書き順の線と部首）を、このアプリで使う1,026字分だけ取り出して加工したものです。
+
+KanjiVG
+Copyright (C) 2009-2026 Ulrich Apel
+https://kanjivg.tagaini.net
+
+This work is distributed under the conditions of the
+Creative Commons Attribution-Share Alike 3.0 Licence.
+https://creativecommons.org/licenses/by-sa/3.0/
+
+加工したデータ（data/kanjivg.js）も、同じ CC BY-SA 3.0 で配布します。
+作り方：python tools/build-kanjivg.py <kanjivg-XXXXXXXX-main.zip>

@@ -57,6 +57,14 @@ KG.Drive = class {
     this.jumpT = 0;       // ジャンプ中の残り時間
     this.jumpH = 0;       // ジャンプの高さ（0〜1）
     this.slowmoT = 0;     // スローモーションの残り時間
+    // ゴーストカー（自己ベストの走り）：0.25秒ごとの「進んだ距離」をくらべる
+    this.dist = 0;
+    this.distSamples = [];
+    this.ghostZ = null;
+    // ボス：かんじモンスター（前を にげている。正解すると近づく）
+    this.monsterGap = this.boss ? 24 : null;
+    this.bossWin = null;
+    this.tipShown = {};
     this.boostT = 0;
     this.particles = [];
     this.puffs = [];
@@ -67,6 +75,7 @@ KG.Drive = class {
     this.paused = false;
     this.done = false;
     this.setPhase('start', 2.6);
+    setTimeout(() => this.hud.say(this.boss ? 'boss_start' : 'start'), 300);
     this.resize = this.resize.bind(this);
     this.loop = this.loop.bind(this);
     window.addEventListener('resize', this.resize);
@@ -101,6 +110,10 @@ KG.Drive = class {
     this.phaseT = 0;
     this.phaseDur = dur;
     if (name === 'cruise') this.spawnCoins(dur);
+    if (name === 'cruise' && this.tutorial && !this.tipShown.c && this.coinObjs.length) {
+      this.tipShown.c = 1;
+      this.hud.tip('がめんの ひだり・みぎを タップして くるまを うごかし、コインを とろう！');
+    }
     this.hud.phase(name, this);
   }
 
@@ -181,6 +194,7 @@ KG.Drive = class {
     let advance = true;
     this.clock += dt;
     if (this.slowmoT > 0) { this.slowmoT -= dt; dt *= 0.35; }
+    if (this.monsterPoof > 0) this.monsterPoof -= dt;
 
     if (this.phase === 'question' && this.mode === 'write') {
       // 書きのとき：分かれ道の手前で止まって、書き終わるのを待つ（待つあいだは時間を数えない）
@@ -209,6 +223,20 @@ KG.Drive = class {
       if (this.phase !== 'goal' && this.phase !== 'start') this.elapsed += dt;
     }
     const move = this.SPEED * speedMul * dt;
+    // 進んだ距離（ゴースト用）
+    if (advance && this.phase !== 'goal' && this.phase !== 'start') {
+      this.dist += move;
+      while (this.distSamples.length * 0.25 <= this.elapsed) this.distSamples.push(this.dist);
+    }
+    if (this.ghost && this.ghost.length > 1) {
+      const f = this.elapsed / 0.25, i = Math.min(this.ghost.length - 2, Math.floor(f));
+      const gd = this.ghost[i] + (this.ghost[i + 1] - this.ghost[i]) * Math.min(1, f - i);
+      const z = 1.0 + (gd - this.dist);
+      this.ghostDiff = (this.dist - gd) / this.SPEED; // プラスなら、じこベストより はやい
+      this.ghostZ = this.phase === 'start' || this.phase === 'goal' ? null : z;
+    }
+    // モンスターは、近づいたり はなれたりを なめらかに
+    if (this.monsterGap != null) this.monsterShown = this.monsterShown == null ? this.monsterGap : this.monsterShown + (this.monsterGap - this.monsterShown) * Math.min(1, dt * 2);
     this.track += move * this.bgSpeed;
     this.boostT = Math.max(0, this.boostT - dt);
 
@@ -241,7 +269,7 @@ KG.Drive = class {
       case 'goal':
         if (this.phaseT >= 2.4 && !this.finished) {
           this.finished = true;
-          this.onFinish(this.results, this.elapsed, { coins: this.coins, maxCombo: this.maxCombo, boostHits: this.boostHits, bonusOk: this.bonusOk });
+          this.onFinish(this.results, this.elapsed, { coins: this.coins, maxCombo: this.maxCombo, boostHits: this.boostHits, bonusOk: this.bonusOk, distSamples: this.distSamples, bossWin: this.bossWin });
         }
         break;
     }
@@ -256,6 +284,7 @@ KG.Drive = class {
         this.skyBlend = 0;
       }
       this.hud.zone(cz.name);
+      if (this.phase !== 'start') this.hud.say('zone', cz.name);
     }
     this.skyBlend = Math.min(1, this.skyBlend + dt / 2.5);
 
@@ -281,6 +310,7 @@ KG.Drive = class {
           this.boostHits++;
           this.addCoins(3);
           KG.audio.boost();
+          this.hud.say('boost');
         } else {
           this.addCoins(1);
           KG.audio.coin();
@@ -382,6 +412,11 @@ KG.Drive = class {
     this.lane = 1;
     this.setPhase('question', this.T);
     this.hud.event(this.item.event || null);
+    if (this.item.event) this.hud.say(this.item.event);
+    if (this.tutorial && !this.tipShown.q) {
+      this.tipShown.q = 1;
+      this.hud.tip(this.mode === 'write' ? 'しかくの ところの かんじを かいて「できた！」を おそう' : 'ただしい ほうの みちを タップ！ けっていラインまで かえられるよ');
+    }
     if (this.item.event === 'final') KG.audio.drumroll(this.T);
     KG.music.setIntensity(1);
     const q = this.item.q;
@@ -409,7 +444,7 @@ KG.Drive = class {
       const pickedText = !picked ? null : picked === it.side ? it.q.correct : it.q.wrong;
       KG.recordRead(it.q, result, { hesitated, responseMs: respT * 1000, switchCount: this.switchCount, picked: pickedText });
     }
-    this.results.push({ q: it.q, result, hesitated, mode: this.mode });
+    this.results.push({ q: it.q, result, hesitated, mode: this.mode, wasWeak: KG.isWeak(it.q.kanji) && result === 'correct' });
     this.lastResult = result;
     // 時間切れのときは、正解の道へ（遠回りの演出だけする）
     this.chosen = picked || it.side;
@@ -425,6 +460,9 @@ KG.Drive = class {
       if (ev === 'final') { this.slowmoT = 1.1; setTimeout(() => KG.audio.comboFanfare(10), 200); this.burst(60); }
       KG.audio.correct(this.combo);
       this.burst();
+      if (this.boss) { this.monsterGap = Math.max(4, this.monsterGap - 4); this.hud.say(this.monsterGap <= 10 ? 'boss_close' : 'boss_near'); }
+      else if (this.combo >= 3) this.hud.say('combo');
+      else if (Math.random() < 0.4) this.hud.say('correct');
       if ([3, 5, 7, 10].includes(this.combo)) {
         setTimeout(() => KG.audio.comboFanfare(this.combo), 350);
         this.events.push({ type: 'rainbow', t: 0, dur: 7 });
@@ -432,6 +470,8 @@ KG.Drive = class {
     } else {
       this.combo = 0;
       KG.audio.wrong();
+      if (this.boss) { this.monsterGap = Math.min(40, this.monsterGap + 5); this.hud.say('boss_far'); }
+      else this.hud.say('wrong');
     }
     KG.music.setIntensity(this.combo >= 3 ? 2 : 0);
     this.hud.combo(this.combo);
@@ -458,6 +498,11 @@ KG.Drive = class {
       this.schedZi = zi;
     }
     if (this.idx >= this.items.length) {
+      if (this.boss) {
+        this.bossWin = this.monsterGap <= 10;
+        this.hud.say(this.bossWin ? 'boss_win' : 'boss_lose');
+        if (this.bossWin) { this.monsterPoof = 1.2; this.burst(80); }
+      } else this.hud.say('goal');
       this.setPhase('goal', 2.4);
       KG.music.stop(0.4);
       KG.audio.goal();
@@ -558,6 +603,7 @@ KG.Drive = class {
     }
 
     this.drawCoins2d();
+    this.drawGhostMonster2d();
     if (this.camZone.tunnel) this.drawHeadlights();
     this.drawWeather();
     this.drawSpeedLines(horizon);
@@ -586,6 +632,32 @@ KG.Drive = class {
       ctx.fillRect(p.x - p.r, p.y - p.r, p.r * 2, p.r * 2);
     }
     ctx.globalAlpha = 1;
+  }
+
+  drawGhostMonster2d() {
+    const ctx = this.ctx;
+    const at = z => { const p = this.proj(z); const rs = this.roadsAt(z); return { p, x: this.sx(rs.reduce((a, r) => a + r.cx, 0) / rs.length, p.ux) }; };
+    if (this.ghostZ != null && this.ghostZ > 1.3 && this.ghostZ < this.FAR) {
+      const { p, x } = at(this.ghostZ);
+      ctx.globalAlpha = 0.4;
+      ctx.fillStyle = '#7ee0ff';
+      KG.rr(ctx, x - p.ux * 0.5, p.y - p.uy * 0.6, p.ux, p.uy * 0.5, p.uy * 0.12); ctx.fill();
+      KG.rr(ctx, x - p.ux * 0.32, p.y - p.uy * 0.95, p.ux * 0.64, p.uy * 0.4, p.uy * 0.12); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    if (this.monsterShown != null && !(this.monsterPoof <= 0)) {
+      const z = this.monsterShown;
+      if (z > 1.3 && z < this.FAR) {
+        const { p, x } = at(z);
+        const hop = Math.abs(Math.sin(this.clock * 6)) * p.uy * 0.25, s = p.uy;
+        ctx.fillStyle = '#7d4ad1';
+        KG.rr(ctx, x - s * 0.7, p.y - s * 1.3 - hop, s * 1.4, s * 1.2, s * 0.3); ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(x - s * 0.4, p.y - s * 1.0 - hop, s * 0.25, s * 0.25); ctx.fillRect(x + s * 0.15, p.y - s * 1.0 - hop, s * 0.25, s * 0.25);
+        ctx.fillStyle = '#1e1e1e';
+        ctx.fillRect(x - s * 0.33, p.y - s * 0.95 - hop, s * 0.12, s * 0.15); ctx.fillRect(x + s * 0.22, p.y - s * 0.95 - hop, s * 0.12, s * 0.15);
+      }
+    }
   }
 
   drawCoins2d() {

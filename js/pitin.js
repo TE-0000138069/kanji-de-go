@@ -1,4 +1,5 @@
-// ピットイン：なぞり書き → 何も見ずに書く
+// ピットイン：書き順ミニゲーム（1画ずつ書いて車をしゅうり）→ 何も見ずに書く
+// 書き順のデータがない字は、なぞり書き → 何も見ずに書く
 // 判定は、お手本の字の形に、書いた線がどれだけ重なっているかで行う（ゆるめの判定）
 window.KG = window.KG || {};
 
@@ -27,7 +28,11 @@ KG.WritePad = class {
       this.cur.push(pos(e));
       this.draw();
     });
-    const end = () => { this.cur = null; };
+    const end = () => {
+      const st = this.cur;
+      this.cur = null;
+      if (st && this.onStrokeEnd) this.onStrokeEnd(st);
+    };
     canvas.addEventListener('pointerup', end);
     canvas.addEventListener('pointercancel', end);
   }
@@ -67,6 +72,7 @@ KG.WritePad = class {
     ctx.setLineDash([]);
     if (this.guide) this.drawChar(ctx, this.guide, s, 'rgba(120,140,170,0.28)');
     if (this.reveal) this.drawChar(ctx, this.reveal, s, 'rgba(255,90,79,0.35)');
+    if (this.drawOverlay) this.drawOverlay(ctx, s);
     this.drawInk(ctx, s, '#222', 0.045);
   }
 
@@ -128,22 +134,147 @@ KG.Pitin = class {
     this.btnClear.onclick = () => this.pad.clear();
     this.btnNext.onclick = () => this.next();
     root.querySelector('#pitinSkip').onclick = () => this.finish();
+    // 書き順（KanjiVG のデータがある字だけ）
+    this.anim = root.querySelector('#pitinAnim');
+    this.btnReplay = root.querySelector('#pitinReplay');
+    this.repair = root.querySelector('#pitinRepair');
+    this.repairBar = root.querySelector('#pitinRepairBar');
+    this.repairTxt = root.querySelector('#pitinRepairTxt');
+    this.btnReplay.onclick = () => this.playAnim();
+    this.pad.onStrokeEnd = st => this.onStroke(st);
+    this.pad.drawOverlay = (ctx, s) => this.overlay(ctx, s);
     this.start();
   }
 
   get ch() { return this.chars[this.i]; }
 
   start() {
-    this.step = 'trace';
     this.tries = 0;
     this.count.textContent = `${this.i + 1} / ${this.chars.length}`;
     this.big.textContent = this.ch;
     this.big.style.visibility = 'visible';
-    this.pad.guide = this.ch;
-    this.pad.clear();
     this.btnNext.hidden = true;
     this.btnCheck.hidden = false;
+    this.btnClear.hidden = false;
+    if (KG.Stroke && KG.Stroke.has(this.ch)) return this.startStroke();
+    this.anim.hidden = this.btnReplay.hidden = this.repair.hidden = true;
+    this.big.hidden = false;
+    this.step = 'trace';
+    this.pad.guide = this.ch;
+    this.pad.clear();
     this.say('うすい字を なぞってみよう');
+  }
+
+  // 書き順モード：1画ずつ、正しい順・正しい向きで書いて、車をしゅうりする
+  startStroke() {
+    this.step = 'stroke';
+    this.list = KG.Stroke.strokes(this.ch);
+    this.k = 0;          // つぎに書く画
+    this.miss = 0;       // この画のまちがい
+    this.missAll = 0;
+    this.hint = null;
+    this.big.hidden = true;
+    this.anim.hidden = this.btnReplay.hidden = this.repair.hidden = false;
+    this.btnCheck.hidden = this.btnClear.hidden = true;
+    this.pad.guide = null;
+    this.pad.clear();
+    this.updateRepair();
+    this.playAnim();
+    this.say(`かきじゅんを 見てから、①から じゅんに かいてね（${this.list.length}かく）`);
+  }
+
+  playAnim() {
+    if (this.stopAnim) this.stopAnim();
+    this.stopAnim = KG.Stroke.animate(this.anim, this.ch, { perStroke: this.list && this.list.length > 12 ? 380 : 520 });
+  }
+
+  updateRepair() {
+    const n = this.list.length;
+    this.repairBar.style.width = `${(this.k / n) * 100}%`;
+    this.repairTxt.textContent = `🔧 しゅうり ${this.k} / ${n}`;
+  }
+
+  // パッドの上に：うすいお手本、書けた画、つぎの画の書きはじめ、ヒントのアニメ
+  overlay(ctx, s) {
+    if (this.step !== 'stroke') return;
+    const S = KG.Stroke, w = s * 0.045;
+    this.list.forEach(d => S.drawPath(ctx, d, s, 'rgba(120,140,170,0.22)', w));
+    for (let i = 0; i < this.k; i++) S.drawPath(ctx, this.list[i], s, '#222', w);
+    if (this.hint) {
+      const t = Math.min(1, (performance.now() - this.hint.t0) / 700);
+      S.drawPartial(ctx, this.list[this.k], s, t, 'rgba(229,57,53,0.75)', w);
+    }
+    if (this.k < this.list.length) S.startDot(ctx, this.list[this.k], s, this.k + 1, '#e53935');
+  }
+
+  showHint() {
+    this.hint = { t0: performance.now() };
+    const loop = () => {
+      if (!this.hint) return;
+      this.pad.draw();
+      if (performance.now() - this.hint.t0 < 1300) requestAnimationFrame(loop);
+      else { this.hint = null; this.pad.draw(); }
+    };
+    requestAnimationFrame(loop);
+  }
+
+  onStroke(st) {
+    if (this.step !== 'stroke') return;
+    this.pad.strokes = [];
+    if (this.k >= this.list.length) return this.pad.draw();
+    const r = KG.Stroke.match(st, this.list[this.k]);
+    if (r.ok) {
+      this.hint = null;
+      this.k++;
+      this.miss = 0;
+      this.updateRepair();
+      KG.audio.select();
+      this.pad.draw();
+      if (this.k >= this.list.length) return this.strokeDone();
+      this.say(['いいね！', 'そのちょうし！', 'ばっちり！', 'じょうず！'][this.k % 4] + ` つぎは ${this.k + 1}かくめ`);
+      return;
+    }
+    this.miss++;
+    this.missAll++;
+    KG.audio.wrong();
+    if (this.miss >= 3) {
+      // 3回まちがえたら、その画はお手本が書いてくれる
+      this.say(`${this.k + 1}かくめは こう かくよ。よく 見てね`);
+      this.showHint();
+      setTimeout(() => {
+        this.k++;
+        this.miss = 0;
+        this.updateRepair();
+        this.pad.draw();
+        if (this.k >= this.list.length) this.strokeDone();
+      }, 1300);
+      return;
+    }
+    this.say({
+      reverse: 'むきが はんたいだよ！ あかい まるから かきはじめよう',
+      start: `${this.k + 1}かくめは あかい まるから かきはじめるよ`,
+      shape: 'かたちが ちがうみたい。あかい おてほんを 見てね',
+    }[r.reason]);
+    this.showHint();
+    this.pad.draw();
+  }
+
+  strokeDone() {
+    KG.audio.correct();
+    if (this.missAll === 0) KG.audio.star && KG.audio.star();
+    this.say(this.missAll === 0 ? 'かきじゅん かんぺき！ しゅうり かんりょう！ 🔧✨' : 'しゅうり かんりょう！ 🔧');
+    setTimeout(() => {
+      if (this.step !== 'stroke') return;
+      if (this.stopAnim) this.stopAnim();
+      this.step = 'blind';
+      this.tries = 0;
+      this.anim.hidden = this.btnReplay.hidden = this.repair.hidden = true;
+      this.big.hidden = false;
+      this.big.style.visibility = 'hidden';
+      this.btnCheck.hidden = this.btnClear.hidden = false;
+      this.pad.clear();
+      this.say('こんどは みないで かいてみよう！');
+    }, 1300);
   }
 
   say(t) { this.msg.textContent = t; }
@@ -177,6 +308,7 @@ KG.Pitin = class {
     if (pass) {
       KG.audio.correct();
       KG.recordWrite(this.ch, true);
+      KG.dailyAdd('pitOk', 1);
       this.say('すごい！ かけたね！ ⭕');
       this.showNext();
     } else if (this.tries < 2) {
@@ -206,6 +338,8 @@ KG.Pitin = class {
   }
 
   finish() {
+    if (this.stopAnim) this.stopAnim();
+    this.step = 'done';
     KG.save();
     this.onDone();
   }
@@ -254,7 +388,7 @@ KG.PitinRead = class {
       else if (b === btn) b.classList.add('miss');
     });
     KG.recordRead(q, ok ? 'correct' : 'wrong', { hesitated: false, picked: btn.textContent });
-    if (ok) { KG.audio.correct(1); this.msg.textContent = 'せいかい！ ⭕'; }
+    if (ok) { KG.audio.correct(1); this.msg.textContent = 'せいかい！ ⭕'; KG.dailyAdd('pitOk', 1); }
     else { KG.audio.wrong(); this.msg.textContent = KG.explain(q); }
     this.next.hidden = false;
     this.next.textContent = this.i + 1 < this.queue.length ? 'つぎへ' : 'おわり';

@@ -42,12 +42,17 @@ function defaultState() {
       control: 'tap', oneHand: false, hand: 'right', slow: false,
       se: 0.7, bgm: 0.5, graphics: '3d', voice: true, textSize: 1, shake: true, bgSpeed: 1,
     },
-    parent: { timeLimit: 0, breakEvery: 20, customKanji: [], drillOrder: {}, drillExamples: {} },
+    parent: { timeLimit: 0, breakEvery: 20, customKanji: [], drillOrder: {}, drillExamples: {}, cheer: '' },
     progress: {},  // 字 -> { read: {...}, write: {...} }
     attempts: [],  // 1問ごとの記録
     stages: {},    // ステージID -> { stars, best }
     stamps: [],    // スタンプをもらった日の一覧（ドライブ1回ごと）
     carColor: 'red',
+    coins: 0,          // 集めたコイン（お店で使える）
+    shopOwned: [],     // お店で買った色
+    ghosts: {},        // ステージごとの自己ベストの走り（ゴーストカー）
+    daily: null,       // きょうのミッション
+    tutorialDone: false,
     driveMode: 'read', // 'read'（よみで はしる）／'write'（かきで はしる）
     carParts: { ...KG.CAR_DEFAULT },
     rewardsSeen: [], // 「アイテム ゲット！」を見せたアイテム
@@ -55,6 +60,7 @@ function defaultState() {
     difficulty: 3,
     recent: [],    // 直近の結果（1=すっきり正解 0=それ以外）
     usage: {},     // 日付 -> 秒
+    radicalClaimed: [], // ごほうびをもらった部首カード
   };
 }
 
@@ -121,7 +127,7 @@ KG.save = function () {
   if (me && s.profile) {
     me.name = s.profile.nickname;
     me.grade = s.profile.grade;
-    me.color = (KG.CAR_COLORS.find(c => c.id === s.carColor) || KG.CAR_COLORS[0]).color;
+    me.color = KG.findColor(s.carColor).color;
     me.stars = Object.values(s.stages).reduce((a, x) => a + (x.stars || 0), 0);
     me.stamps = s.stamps.length;
   }
@@ -498,9 +504,78 @@ KG.carLook = function (override) {
     const it = KG.CAR_ITEMS.find(x => x.id === parts[slot]);
     if (it && !KG.itemOpen(it)) parts[slot] = KG.CAR_DEFAULT[slot]; // まだもらっていないものは使えない
   }
-  const color = parts.paint === 'rainbow' ? 'rainbow' : (KG.CAR_COLORS.find(c => c.id === KG.state.carColor) || KG.CAR_COLORS[0]).color;
+  const color = parts.paint === 'rainbow' ? 'rainbow' : KG.findColor(KG.state.carColor).color;
   return { ...parts, color };
 };
+
+// ---- コインのお店（車の色）----
+KG.SHOP_COLORS = [
+  { id: 'mint', name: 'ミント', color: '#5fe0c0', price: 100 },
+  { id: 'orange', name: 'オレンジ', color: '#ff9f43', price: 150 },
+  { id: 'black', name: 'ブラック', color: '#2b2d42', price: 200 },
+  { id: 'white', name: 'ホワイト', color: '#f4f4f4', price: 200 },
+  { id: 'sky', name: 'そらいろ', color: '#7ec8ff', price: 250 },
+  { id: 'silver', name: 'シルバー', color: '#b8c4cf', price: 300 },
+];
+KG.findColor = id => KG.CAR_COLORS.concat(KG.SHOP_COLORS).find(c => c.id === id) || KG.CAR_COLORS[0];
+
+// ---- ドライバーランク（正解した数と星で上がる）----
+KG.RANKS = [
+  { name: 'ルーキー', pts: 0, color: '#9aa0a8' },
+  { name: 'ブロンズ', pts: 60, color: '#c97c3a' },
+  { name: 'シルバー', pts: 180, color: '#c0c6cc' },
+  { name: 'ゴールド', pts: 400, color: '#ffd54a' },
+  { name: 'プラチナ', pts: 800, color: '#7ee0ff' },
+  { name: 'ダイヤ', pts: 1500, color: '#b07cff' },
+  { name: 'レジェンド', pts: 3000, color: '#ff5a8a' },
+];
+KG.rankPoints = () => KG.state.attempts.filter(a => a.result === 'correct').length + KG.totalStars() * 5;
+KG.rankOf = function (pts = KG.rankPoints()) {
+  let i = 0;
+  while (i + 1 < KG.RANKS.length && pts >= KG.RANKS[i + 1].pts) i++;
+  const cur = KG.RANKS[i], next = KG.RANKS[i + 1];
+  return { i, rank: cur, next, pts, toNext: next ? next.pts - pts : 0, progress: next ? (pts - cur.pts) / (next.pts - cur.pts) : 1 };
+};
+
+// ---- きょうのミッション（毎日3つ。全部できたら「ふしぎな箱」）----
+KG.DAILY_POOL = [
+  { id: 'drive2', text: 'ドライブを 2かい はしる', key: 'drives', need: 2 },
+  { id: 'coin100', text: 'コインを 100まい あつめる', key: 'coins', need: 100 },
+  { id: 'weak3', text: 'にがての字を 3つ せいかい', key: 'weakOk', need: 3 },
+  { id: 'write1', text: 'かきで 1かい はしる', key: 'writeDrives', need: 1 },
+  { id: 'nomiss1', text: 'ノーミスで ゴール', key: 'nomiss', need: 1 },
+  { id: 'bonus2', text: 'ボーナスゲートで 2かい せいかい', key: 'bonus', need: 2 },
+  { id: 'combo5', text: '5れんぞく せいかい', key: 'combo5', need: 1 },
+  { id: 'pit2', text: 'ピットインで 2もん せいかい', key: 'pitOk', need: 2 },
+];
+KG.daily = function () {
+  const today = KG.today();
+  if (!KG.state.daily || KG.state.daily.day !== today) {
+    // 日付とユーザーで決まる3つ（同じ日なら、いつも同じ）
+    let h = 7;
+    for (const ch of today + (KG.profiles && KG.profiles.active)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    const pool = KG.DAILY_POOL.slice(), ids = [];
+    while (ids.length < 3) { ids.push(pool.splice(h % pool.length, 1)[0].id); h = (h * 1103515245 + 12345) >>> 0; }
+    KG.state.daily = { day: today, ids, c: {}, done: false, opened: false };
+  }
+  const d = KG.state.daily;
+  const list = d.ids.map(id => {
+    const m = KG.DAILY_POOL.find(x => x.id === id);
+    const v = d.c[m.key] || 0;
+    return { ...m, v: Math.min(v, m.need), ok: v >= m.need };
+  });
+  return { list, done: d.done, opened: d.opened };
+};
+// 数を足す。3つとも達成したら true を返す（1日1回）
+KG.dailyAdd = function (key, n = 1) {
+  KG.daily();
+  const d = KG.state.daily;
+  d.c[key] = (d.c[key] || 0) + n;
+  if (!d.done && KG.daily().list.every(x => x.ok)) { d.done = true; return true; }
+  return false;
+};
+// ふしぎな箱の中身（ランクが上がるほど多い）
+KG.boxCoins = () => 50 + KG.rankOf().i * 20;
 
 // ---- 利用時間 ----
 KG.addUsage = function (sec) {

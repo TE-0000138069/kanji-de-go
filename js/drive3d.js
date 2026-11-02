@@ -643,6 +643,7 @@ window.KG = window.KG || {};
       this.updateSigns();
       this.updateEvents();
       this.updateCoins();
+      this.updateGhostMonster();
       this.updateCar();
 
       for (const b of Object.values(this.blocks)) {
@@ -939,6 +940,45 @@ window.KG = window.KG || {};
             o.position.set(cx + (e.x - 0.5) * 140 - e.dir * i * 3.8, 6.4, -60);
           }
         }
+      }
+    }
+
+    updateGhostMonster() {
+      const d = this.d;
+      const centerAt = z => { const rs = d.roadsAt(z); return rs.reduce((a, r) => a + r.cx, 0) / rs.length; };
+      // ゴーストカー（半透明の水色）
+      if (d.ghostZ != null && d.ghostZ > -2 && d.ghostZ < FAR) {
+        if (!this.ghostCar) {
+          const m = new ModelBuilder();
+          carModel(m, { color: '#7ee0ff', body: 'normal', wheel: 'normal', roof: 'none', decal: 'none' });
+          const mat = new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: 0.38, depthWrite: false });
+          this.ghostCar = m.build({ lit: mat, glow: mat });
+          this.scene.add(this.ghostCar);
+        }
+        this.ghostCar.visible = true;
+        this.ghostCar.position.set(centerAt(d.ghostZ), 0, -d.ghostZ);
+      } else if (this.ghostCar) this.ghostCar.visible = false;
+      // かんじモンスター
+      const z = d.monsterShown;
+      if (z != null && !(d.monsterPoof <= 0) && z > 1 && z < FAR) {
+        const o = this.acquire('monster', () => {
+          const m = new ModelBuilder();
+          m.box(0, 0, 0, 1.6, 1.3, 1.2, '#7d4ad1');
+          m.box(0, 1.3, 0, 1.2, 0.3, 1.0, '#6a3cbb');
+          for (const sx of [-1, 1]) {
+            m.box(sx * 0.4, 0.75, 0.61, 0.34, 0.34, 0.04, '#ffffff');
+            m.box(sx * 0.4, 0.72, 0.64, 0.16, 0.2, 0.04, '#1e1e1e');
+            m.box(sx * 0.55, 1.6, 0, 0.18, 0.4, 0.18, '#ffd54a');
+          }
+          m.box(0, 0.3, 0.61, 0.7, 0.14, 0.04, '#ff5a8a');
+          // 背中の「漢」の看板
+          m.box(0, 0.4, -0.65, 0.9, 0.9, 0.06, '#fffaf0');
+          return m.build(this.mats);
+        });
+        const s = d.monsterPoof > 0 ? Math.max(0.01, d.monsterPoof / 1.2) : 1;
+        o.position.set(centerAt(z), Math.abs(Math.sin(d.clock * 6)) * 0.5, -z);
+        o.rotation.set(0, Math.PI, 0); // こちらに背中を向けて にげる
+        o.scale.set(s, s, s);
       }
     }
 

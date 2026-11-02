@@ -91,6 +91,13 @@ const renderers = {
     $('#homeHello').textContent = `${p.nickname} さん（${KG.grade}ねんせい）、どこへ いく？`;
     $('#homeStars').textContent = `⭐ ${KG.totalStars()}`;
     $('#homeMastered').textContent = `📖 おぼえた字 ${KG.allChars.filter(KG.isMastered).length} / ${KG.allChars.length}`;
+    const rk = KG.rankOf();
+    $('#homeRank').innerHTML = `<i class="ico ico-medal"></i> <b style="color:${rk.rank.color}">${rk.rank.name}</b> ドライバー
+      <span class="rk-bar"><i style="width:${Math.round(rk.progress * 100)}%"></i></span>${rk.next ? `<small>${rk.next.name}まで あと ${rk.toNext}</small>` : '<small>さいこうランク！</small>'}`;
+    const dl = KG.daily();
+    $('#homeDaily').innerHTML = `<b>きょうの ミッション</b>` + dl.list.map(m => `<div class="${m.ok ? 'ok' : ''}">${m.ok ? '✅' : '⬜'} ${esc(m.text)} <small>${m.v}/${m.need}</small></div>`).join('') +
+      (dl.done && !dl.opened ? '<button class="btn small" id="dailyBox"><i class="ico ico-box"></i> ふしぎな はこを あける</button>' : dl.opened ? '<div class="done">🎉 きょうは ぜんぶ たっせい！</div>' : '');
+    if ($('#dailyBox')) $('#dailyBox').onclick = openBox;
     $('#limitModal').hidden = !KG.overTimeLimit();
   },
 
@@ -170,12 +177,18 @@ const renderers = {
   },
 
   result(data) {
-    const { results, elapsed, starsN, isBest, noMiss, mode, coins = 0, missionResults = [] } = data;
+    const { results, elapsed, starsN, isBest, noMiss, mode, coins = 0, missionResults = [], rankUp, dailyDone, boss, bossWin } = data;
+    const extra = [];
+    if (boss) extra.push(bossWin ? '👾 かんじモンスターを やっつけた！' : '👾 モンスターに にげられた… つぎこそ！');
+    if (rankUp) extra.push(`<i class="ico ico-medal"></i> ランクアップ！ <b style="color:${rankUp.color}">${rankUp.name}</b> ドライバーに なった！`);
+    if (dailyDone) extra.push('<i class="ico ico-box"></i> きょうの ミッション たっせい！ ホームで はこを あけよう');
+    $('#resExtra').innerHTML = extra.map(x => `<div>${x}</div>`).join('');
+    if (rankUp || bossWin) setTimeout(() => KG.audio.comboFanfare(8), 1800);
     $('#resCoins').textContent = `${coins}まい`;
     $('#resMissions').innerHTML = missionResults.map(m => `<div class="${m.now ? 'ok' : m.before ? 'was' : 'ng'}">
       <span>${m.now ? '✅' : m.before ? '☑️' : '⬜'}</span> ${esc(m.text)} ${m.isNew ? '<b class="new">NEW!</b>' : ''}</div>`).join('');
     const correct = results.filter(r => r.result === 'correct').length;
-    $('#resTitle').textContent = noMiss ? 'ノーミス ゴール！' : 'ゴール！';
+    $('#resTitle').textContent = boss ? (bossWin ? 'モンスター たいじ！' : 'ゴール！') : noMiss ? 'ノーミス ゴール！' : 'ゴール！';
     $('#resStars').innerHTML = '<span class="off">★★★</span>';
     for (let i = 0; i < starsN; i++) {
       setTimeout(() => {
@@ -209,7 +222,7 @@ const renderers = {
     root.querySelector('.pitin-btns').hidden = read;
     root.querySelector('.topbar h2').firstChild.textContent = read ? '🔧 ピットイン（よみ） ' : '🔧 ピットイン（かき） ';
     if (read) new KG.PitinRead(root, chars, () => show('stamp', true));
-    else new KG.Pitin(root, chars, () => show('stamp', true));
+    else ui.pitin = new KG.Pitin(root, chars, () => show('stamp', true));
   },
 
   stamp(fresh) {
@@ -227,27 +240,25 @@ const renderers = {
 
   zukan() {
     const tabs = $('#zukanTabs');
-    tabs.innerHTML = KG.courses.map(c => `<button data-c="${c.id}" class="${c.id === ui.zukanCourse ? 'on' : ''}">${c.emoji} ${c.name}</button>`).join('');
+    tabs.innerHTML = KG.courses.map(c => `<button data-c="${c.id}" class="${c.id === ui.zukanCourse ? 'on' : ''}">${c.emoji} ${c.name}</button>`).join('')
+      + (KG.RADICALS ? `<button data-c="bushu" class="${ui.zukanCourse === 'bushu' ? 'on' : ''}">🃏 ぶしゅカード</button>` : '');
     tabs.querySelectorAll('button').forEach(b => (b.onclick = () => { ui.zukanCourse = b.dataset.c; renderers.zukan(); }));
-    const course = KG.courses.find(c => c.id === ui.zukanCourse);
+    if (ui.zukanCourse === 'bushu') return renderBushu();
+    const course = KG.courses.find(c => c.id === ui.zukanCourse) || KG.courses[0];
+    ui.zukanCourse = course.id;
+    $('#zukanGrid').className = 'zukan-grid';
     $('#zukanCount').textContent = `${KG.grade}ねんせい おぼえた字 ${KG.allChars.filter(KG.isMastered).length} / ${KG.allChars.length}`;
     $('#zukanGrid').innerHTML = course.chars.map(ch => {
       const s = KG.starsOf(ch);
-      const seen = KG.state.progress[ch] && KG.state.progress[ch].read.seen;
+      const seen = metChar(ch);
       return `<div class="zcell ${seen ? '' : 'unseen'} ${KG.isWeak(ch) ? 'weak' : ''}" data-k="${esc(ch)}"><span class="k">${seen ? esc(ch) : '？'}</span><span class="s">${'★'.repeat(s)}${'☆'.repeat(3 - s)}</span></div>`;
     }).join('');
-    $$('#zukanGrid .zcell').forEach(c => (c.onclick = () => {
-      const ch = c.dataset.k;
-      if (!KG.state.progress[ch] || !KG.state.progress[ch].read.seen) { toast('まだ であっていない字だよ'); return; }
-      const q = KG.qByKanji[ch][0];
-      toast(q.text.replace(/\{(.+?)\}/, `$1（${q.correct}）`), 3000);
-      KG.audio.speak(q.text.replace(/\{(.+?)\}/, q.correct));
-    }));
+    $$('#zukanGrid .zcell').forEach(c => (c.onclick = () => openStroke(c.dataset.k)));
   },
 
   garage() {
     const total = KG.totalStars(), stamps = KG.state.stamps.length;
-    $('#garageStars').innerHTML = `<i class="ico ico-star"></i> ${total}　<i class="ico ico-fuel"></i> ${stamps}`;
+    $('#garageStars').innerHTML = `<i class="ico ico-star"></i> ${total}　<i class="ico ico-fuel"></i> ${stamps}　<i class="ico ico-coin"></i> ${KG.state.coins || 0}`;
     showPreview($('#garagePreview'), KG.carLook());
     renderNextReward($('#garageNext'));
     ui.garageSlot = ui.garageSlot || 'paint';
@@ -262,6 +273,27 @@ const renderers = {
         on: parts.paint === 'color' && KG.state.carColor === c.id,
         pick: () => { KG.state.carColor = c.id; KG.state.carParts.paint = 'color'; },
       }));
+      // コインのお店
+      const coins = KG.state.coins || 0;
+      for (const c of KG.SHOP_COLORS) {
+        const owned = (KG.state.shopOwned || []).includes(c.id);
+        items.push({
+          key: 's:' + c.id, name: c.name, html: `<span class="sw" style="background:${c.color}"></span>`,
+          shop: !owned, price: c.price, canBuy: coins >= c.price,
+          on: parts.paint === 'color' && KG.state.carColor === c.id,
+          pick: () => {
+            if (!owned) {
+              if (coins < c.price) { toast(`コインが あと ${c.price - coins}まい たりないよ`); return false; }
+              if (!confirm(`コイン ${c.price}まいで「${c.name}」を かいますか？`)) return false;
+              KG.state.coins -= c.price;
+              KG.state.shopOwned = (KG.state.shopOwned || []).concat(c.id);
+              KG.audio.stamp();
+              toast(`「${c.name}」を かったよ！`);
+            }
+            KG.state.carColor = c.id; KG.state.carParts.paint = 'color';
+          },
+        });
+      }
     } else {
       const none = { body: 'ふつうの くるま', wheel: 'ふつうの タイヤ', roof: 'なし', decal: 'なし' }[ui.garageSlot];
       items.push({ key: 'none', name: none, html: ui.garageSlot === 'body' ? '<i class="ico ico-car"></i>' : '<span class="none">－</span>', on: parts[ui.garageSlot] === KG.CAR_DEFAULT[ui.garageSlot], pick: () => { KG.state.carParts[ui.garageSlot] = KG.CAR_DEFAULT[ui.garageSlot]; } });
@@ -273,9 +305,9 @@ const renderers = {
         on: parts[it.slot] === it.id, pick: () => { KG.state.carParts[it.slot] = it.id; },
       });
     }
-    $('#garageList').innerHTML = items.map((it, i) => `<button class="garage-item ${it.on ? 'sel' : ''} ${it.locked ? 'locked' : ''}" data-i="${i}" ${it.locked ? 'disabled' : ''}>
-      ${it.html}${esc(it.name)}<small>${it.locked ? it.lockText : it.on ? 'つけている' : ''}</small></button>`).join('');
-    $$('#garageList .garage-item').forEach(b => (b.onclick = () => { items[+b.dataset.i].pick(); KG.save(); KG.audio.select('R'); renderers.garage(); }));
+    $('#garageList').innerHTML = items.map((it, i) => `<button class="garage-item ${it.on ? 'sel' : ''} ${it.locked ? 'locked' : ''} ${it.shop ? 'shop' : ''}" data-i="${i}" ${it.locked ? 'disabled' : ''}>
+      ${it.html}${esc(it.name)}<small>${it.locked ? it.lockText : it.on ? 'つけている' : it.shop ? `<i class="ico ico-coin"></i>${it.price}まいで かう` : ''}</small></button>`).join('');
+    $$('#garageList .garage-item').forEach(b => (b.onclick = () => { if (items[+b.dataset.i].pick() === false) return; KG.save(); KG.audio.select('R'); renderers.garage(); }));
   },
 
   settings() {
@@ -483,7 +515,97 @@ function showReward() {
   $('#rewardLater').onclick = () => done(false);
 }
 
+// きょうのミッションを全部たっせいしたら、ふしぎな箱
+function openBox() {
+  const dl = KG.daily();
+  if (!dl.done || dl.opened) return;
+  const m = $('#boxModal');
+  m.hidden = false;
+  $('#boxMsg').textContent = 'はこを タップして あけてみよう！';
+  $('#boxClose').hidden = true;
+  $('#boxOpen').classList.remove('opened');
+  $('#boxOpen').onclick = () => {
+    if ($('#boxOpen').classList.contains('opened')) return;
+    const n = KG.boxCoins();
+    KG.state.coins = (KG.state.coins || 0) + n;
+    KG.state.daily.opened = true;
+    KG.save();
+    $('#boxOpen').classList.add('opened');
+    KG.audio.goal();
+    $('#boxMsg').innerHTML = `<i class="ico ico-coin"></i> コイン ${n}まい ゲット！`;
+    $('#boxClose').hidden = false;
+  };
+  $('#boxClose').onclick = () => { m.hidden = true; if (ui.current === 'home') renderers.home(); };
+}
+
 // ユーザーを切りかえたら、画面の状態（選んでいたコースなど）を元にもどす
+// もう であった字か（読みでも書きでも）
+function metChar(ch) {
+  const p = KG.state.progress[ch];
+  return !!(p && ((p.read && p.read.seen) || (p.write && p.write.seen)));
+}
+
+// ぶしゅカード：同じ部首の字を ぜんぶ であうと、カード かんせい
+function renderBushu() {
+  const pool = KG.GRADES.filter(g => g <= KG.grade).flatMap(g => KG.charsByGrade[g]);
+  const groups = KG.radicalGroups(pool).filter(g => g.chars.length >= 2);
+  const claimed = KG.state.radicalClaimed || (KG.state.radicalClaimed = []);
+  const done = groups.filter(g => g.chars.every(metChar)).length;
+  $('#zukanCount').textContent = `かんせい ${done} / ${groups.length}まい`;
+  const grid = $('#zukanGrid');
+  grid.className = 'bushu-grid';
+  grid.innerHTML = groups.map(g => {
+    const got = g.chars.filter(metChar).length;
+    const full = got === g.chars.length;
+    const reward = 20 + 5 * g.chars.length;
+    const btn = full && !claimed.includes(g.r)
+      ? `<button class="btn small bushu-claim" data-r="${esc(g.r)}"><i class="ico ico-coin"></i> ${reward}まい もらう</button>`
+      : full ? '<span class="bushu-ok">✔ かんせい</span>' : `<span class="bushu-n">あと ${g.chars.length - got}字</span>`;
+    return `<div class="bushu-card ${full ? 'full' : ''}">
+      <div class="bushu-head"><span class="bushu-r">${esc(g.r)}</span><span class="bushu-name">${esc(g.name)}</span></div>
+      <div class="bushu-bar"><i style="width:${(got / g.chars.length) * 100}%"></i></div>
+      <div class="bushu-chips">${g.chars.map(c => metChar(c) ? `<span class="chip" data-k="${esc(c)}">${esc(c)}</span>` : '<span class="chip off">？</span>').join('')}</div>
+      <div class="bushu-foot">${got} / ${g.chars.length}　${btn}</div>
+    </div>`;
+  }).join('');
+  $$('#zukanGrid .chip[data-k]').forEach(c => (c.onclick = () => openStroke(c.dataset.k)));
+  $$('#zukanGrid .bushu-claim').forEach(b => (b.onclick = () => {
+    const g = groups.find(x => x.r === b.dataset.r);
+    if (!g || claimed.includes(g.r)) return;
+    claimed.push(g.r);
+    const n = 20 + 5 * g.chars.length;
+    KG.state.coins = (KG.state.coins || 0) + n;
+    KG.save();
+    KG.audio.goal();
+    toast(`「${g.name || g.r}」カード かんせい！ コイン ${n}まい ゲット！`, 2600);
+    renderBushu();
+  }));
+}
+
+// 図鑑の字をタップ：書き順のアニメ・部首・例文
+function openStroke(ch) {
+  if (!metChar(ch)) { toast('まだ であっていない字だよ'); return; }
+  const q = (KG.qByKanji[ch] || [])[0];
+  if (!KG.Stroke || !KG.Stroke.has(ch)) {
+    if (q) toast(q.text.replace(/\{(.+?)\}/, `$1（${q.correct}）`), 3000);
+    return;
+  }
+  const m = $('#strokeModal');
+  const n = KG.Stroke.strokes(ch).length;
+  $('#smTitle').textContent = `${ch}（${n}かく）`;
+  const rad = KG.RADICALS && KG.RADICALS[ch];
+  const rname = rad ? KG.radicalName(rad) : '';
+  $('#smInfo').innerHTML = (rad ? `ぶしゅ：<b>${esc(rad.r)}</b>${rname ? `（${esc(rname)}）` : ''}<br>` : '')
+    + (q ? esc(q.text.replace(/\{(.+?)\}/, `$1（${q.correct}）`)) : '');
+  let stop = null;
+  const play = () => { if (stop) stop(); stop = KG.Stroke.animate($('#smCanvas'), ch, { perStroke: n > 12 ? 380 : 520 }); };
+  $('#smReplay').onclick = play;
+  $('#smClose').onclick = () => { if (stop) stop(); m.hidden = true; };
+  m.hidden = false;
+  play();
+  if (q) KG.audio.speak(q.text.replace(/\{(.+?)\}/, q.correct));
+}
+
 function resetUiForProfile() {
   ui.course = 'machi';
   ui.zukanCourse = 'machi';
@@ -673,6 +795,10 @@ const parentTabs = {
           <button class="btn small" data-rename="${x.id}">名前を変える</button>
           <button class="btn small danger" data-del="${x.id}">このユーザーを消す</button></div>`).join('')}
       </div>
+      <div class="card"><h3>おうえんメッセージ（${esc(KG.state.profile.nickname)}）</h3>
+        <p class="note">ドライブの はじめに、ナビの ふきだしで 表示されます（30文字まで）。</p>
+        <div class="prow"><input id="pCheer" class="pname" style="width:24em" maxlength="30" value="${esc(p.cheer || '')}" placeholder="例：きょうも がんばってね！"><button class="btn small" id="pCheerSave">保存</button></div>
+      </div>
       <div class="card"><h3>利用時間（${esc(KG.state.profile.nickname)}）</h3>
         <div class="prow">1日の上限 <select id="pLimit">${opt([0, 15, 30, 45, 60], p.timeLimit, '分')}</select></div>
         <div class="prow">休憩の案内 <select id="pBreak">${opt([0, 15, 20, 30], p.breakEvery, '分ごと')}</select></div>
@@ -682,6 +808,9 @@ const parentTabs = {
         <div class="prow"><button class="btn small" id="pExport">学習データを書き出す（JSON）</button></div>
         <div class="prow"><button class="btn small danger" id="pReset">${esc(KG.state.profile.nickname)} さんの学習記録を削除する</button></div>
         <p class="note">データはこのiPadのブラウザの中だけに保存されています。Safariの「履歴とWebサイトデータを消去」をすると消えるので、ときどき書き出しておくと安心です。</p>
+      </div>
+      <div class="card"><h3>使っているデータ</h3>
+        <p class="note">書き順・部首データ：KanjiVG（Ulrich Apel, CC BY-SA 3.0）https://kanjivg.tagaini.net<br>フォント：DotGothic16（SIL OFL 1.1）／3D表示：three.js（MIT）</p>
       </div>`;
     $$('[data-rename]').forEach(b => (b.onclick = () => {
       const id = b.dataset.rename;
@@ -708,6 +837,7 @@ const parentTabs = {
       toast(`「${x.name}」を消しました`);
       parentTabs.psettings();
     }));
+    $('#pCheerSave').onclick = () => { p.cheer = $('#pCheer').value.trim(); KG.save(); toast('おうえんメッセージを保存しました'); };
     $('#pLimit').onchange = e => { p.timeLimit = +e.target.value; KG.save(); };
     $('#pBreak').onchange = e => { p.breakEvery = +e.target.value; KG.save(); };
     $('#pAllow').onclick = () => { p.allowDay = KG.today(); KG.save(); parentTabs.psettings(); toast('今日の上限を解除しました'); };
@@ -786,6 +916,8 @@ function startDrive(stage) {
   }
   items[items.length - 1].event = 'final';
   const missions = KG.stageMissions(stage.id, mode, items.length);
+  const ghostKey = stage.id + ':' + mode;
+  const ghost = !KG.state.settings.slow && KG.state.ghosts && KG.state.ghosts[ghostKey] ? KG.state.ghosts[ghostKey].s : null;
   if (KG.state.settings.control === 'tilt' && !tiltGranted) requestTilt(); // タップの流れの中で許可をもらう
 
   show('drive');
@@ -793,6 +925,9 @@ function startDrive(stage) {
   const hud = makeHud(items, mode, missions);
   ui.drive = new KG.Drive({
     mode,
+    ghost,
+    boss: stage.kind === 'weak',
+    tutorial: !KG.state.tutorialDone,
     canvas: $('#driveCanvas'),
     canvas3d: $('#driveCanvas3d'),
     course: stage.course,
@@ -802,6 +937,8 @@ function startDrive(stage) {
     onFinish: (results, elapsed, stats) => finishDrive(stage, results, elapsed, mode, missions, stats),
   });
   if (KG.state.settings.control === 'tilt') startTilt(ui.drive);
+  const cheer = (KG.state.parent.cheer || '').trim();
+  if (cheer) setTimeout(() => hud.say('cheer', cheer), 3200);
   const tb = $('#toggleBtn');
   tb.className = 'toggle-btn' + (KG.state.settings.oneHand ? ' on ' + KG.state.settings.hand : '');
 }
@@ -810,6 +947,10 @@ function makeHud(items, mode = 'read', missions = []) {
   const wb = $('#writeBox');
   wb.hidden = true;
   const coinHud = $('#coinHud'), evb = $('#eventBanner'), mc = $('#missionCard');
+  const nav = $('#navBubble'), tipBox = $('#tipBox'), bossBar = $('#bossBar');
+  nav.classList.remove('on'); tipBox.classList.remove('on');
+  bossBar.hidden = true;
+  $('#ghostHud').hidden = true;
   coinHud.querySelector('b').textContent = '0';
   evb.classList.remove('on');
   // スタートのときに、このステージのミッションを見せる
@@ -827,6 +968,40 @@ function makeHud(items, mode = 'read', missions = []) {
   return {
     // 決定ラインまでの残り時間（1→0）
     timer(frac) { bar.style.transform = `scaleX(${Math.max(0, frac)})`; },
+    // ナビ（ピヨナビ）のせりふ
+    say(kind, arg) {
+      const L = {
+        start: ['いくよ！ しゅっぱつ しんこう！', 'きょうも がんばろう！', 'コインも あつめて いこう！'],
+        correct: ['いいね！', 'さすが！', 'その ちょうし！', 'ナイス！'],
+        combo: ['すごい！ れんぞく せいかい！', 'とまらないね！', 'ぜっこうちょう！'],
+        wrong: ['だいじょうぶ！ つぎ いこう', 'おしい！ いま おぼえちゃおう', 'まちがえても へっちゃら！'],
+        bonus: ['きんいろの かんばんだ！ チャンス！'],
+        jump: ['ジャンプだい だ！ とんで いこう！'],
+        final: ['さいごの もんだい！ きめよう！'],
+        boost: ['ブースト！ びゅーん！'],
+        zone: [`${arg}に ついたよ！`],
+        goal: ['ゴール！ よく がんばったね！'],
+        boss_start: ['かんじモンスターが にげてる！ せいかいして おいつこう！'],
+        boss_near: ['ちかづいてきた！'],
+        boss_close: ['あと すこしで つかまえられる！'],
+        boss_far: ['にげられた！ まけないで！'],
+        boss_win: ['つかまえた！ モンスターを やっつけたよ！'],
+        boss_lose: ['にげられちゃった… また ちょうせんしよう！'],
+        cheer: [arg ? `おうちの人から：「${arg}」` : ''],
+      }[kind];
+      if (!L || !L[0]) return;
+      nav.querySelector('span').textContent = L[Math.floor(Math.random() * L.length)];
+      nav.classList.add('on');
+      clearTimeout(nav.timer);
+      nav.timer = setTimeout(() => nav.classList.remove('on'), kind === 'cheer' ? 4000 : 2400);
+    },
+    // はじめての人への ヒント
+    tip(text) {
+      tipBox.textContent = '💡 ' + text;
+      tipBox.classList.add('on');
+      clearTimeout(tipBox.timer);
+      tipBox.timer = setTimeout(() => tipBox.classList.remove('on'), 5000);
+    },
     coins(n, add) {
       coinHud.querySelector('b').textContent = n;
       coinHud.classList.remove('pop'); void coinHud.offsetWidth; coinHud.classList.add('pop');
@@ -935,6 +1110,7 @@ function finishDrive(stage, results, elapsed, mode = 'read', missions = [], stat
   ui.drive = null;
   const correct = results.filter(r => r.result === 'correct').length;
   const noMiss = correct === results.length;
+  const rankBefore = KG.rankOf(KG.rankPoints() - correct).i;
   // ミッション：何回かに分けて達成してもよい（達成したものは記録に残る）
   const st = { correct, total: results.length, elapsed, coins: stats.coins || 0, maxCombo: stats.maxCombo || 0, boostHits: stats.boostHits || 0, bonusOk: stats.bonusOk || 0 };
   const rec = KG.state.stages[stage.id] || { stars: 0, best: null };
@@ -951,12 +1127,29 @@ function finishDrive(stage, results, elapsed, mode = 'read', missions = [], stat
   const isBest = correct > 0 && (rec.best == null || elapsed < rec.best);
   rec.stars = Math.max(rec.stars || 0, starsN);
   KG.state.coins = (KG.state.coins || 0) + st.coins;
+  // ゴースト：自己ベストのときの走りを残す
+  KG.state.ghosts = KG.state.ghosts || {};
+  const gk = stage.id + ':' + mode;
+  if (stats.distSamples && (!KG.state.ghosts[gk] || elapsed < KG.state.ghosts[gk].time)) KG.state.ghosts[gk] = { time: +elapsed.toFixed(1), s: stats.distSamples.map(v => +v.toFixed(1)) };
+  // きょうのミッション
+  let dailyDone = false;
+  const add = (k, n) => { if (n > 0 && KG.dailyAdd(k, n)) dailyDone = true; };
+  add('drives', 1);
+  add('coins', st.coins);
+  add('writeDrives', mode === 'write' ? 1 : 0);
+  add('nomiss', noMiss ? 1 : 0);
+  add('bonus', st.bonusOk);
+  add('combo5', st.maxCombo >= 5 ? 1 : 0);
+  add('weakOk', results.filter(r => r.wasWeak).length);
+  KG.state.tutorialDone = true;
   if (isBest) rec.best = +elapsed.toFixed(1);
   KG.state.stages[stage.id] = rec;
   KG.state.stamps.push(KG.today());
   KG.adjustDifficulty();
   KG.save();
-  show('result', { results, elapsed, starsN: rec.stars, isBest, noMiss, mode, coins: st.coins, missionResults });
+  const rankAfter = KG.rankOf();
+  show('result', { results, elapsed, starsN: rec.stars, isBest, noMiss, mode, coins: st.coins, missionResults,
+    rankUp: rankAfter.i > rankBefore ? rankAfter.rank : null, dailyDone, boss: stage.kind === 'weak', bossWin: stats.bossWin });
   const be = KG.state.parent.breakEvery;
   if (be && ui.sessionPlay >= be * 60) {
     ui.sessionPlay = 0;
@@ -998,7 +1191,23 @@ document.addEventListener('visibilitychange', () => {
 });
 
 setInterval(() => {
-  if (ui.drive) $('#timer').textContent = ui.drive.elapsed.toFixed(1);
+  if (!ui.drive) return;
+  $('#timer').textContent = ui.drive.elapsed.toFixed(1);
+  // ゴースト：じこベストとの差
+  const d = ui.drive, gh = $('#ghostHud');
+  gh.hidden = !(d.ghost && d.ghostDiff != null && d.phase !== 'start');
+  if (!gh.hidden) {
+    const v = Math.abs(d.ghostDiff).toFixed(1);
+    gh.className = 'ghost-hud ' + (d.ghostDiff >= 0 ? 'ahead' : 'behind');
+    gh.textContent = `👻 じこベストより ${v}びょう ${d.ghostDiff >= 0 ? 'はやい！' : 'おそい'}`;
+  }
+  // ボス：モンスターとの きょり
+  const bar = $('#bossBar');
+  if (d.boss) {
+    bar.hidden = false;
+    const g = d.monsterShown == null ? d.monsterGap : d.monsterShown;
+    bar.querySelector('.bb-mon').style.left = Math.max(8, Math.min(92, (g / 40) * 100)) + '%';
+  }
 }, 100);
 
 // 利用時間：ドライブ中とピットイン中だけ数える
