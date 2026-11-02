@@ -541,15 +541,15 @@ window.KG = window.KG || {};
         this.signs[side] = { g, c, tex, board, post, key: '' };
       }
     }
-    drawSign(s, text, sel) {
-      const key = text + sel;
+    drawSign(s, text, sel, gold) {
+      const key = text + sel + gold;
       if (s.key === key) return;
       s.key = key;
       const g = s.c.getContext('2d');
       g.clearRect(0, 0, 256, 128);
       g.fillStyle = sel ? '#ffd54a' : '#ffffff';
       KG.rr(g, 0, 0, 256, 128, 18); g.fill();
-      g.fillStyle = '#1f8a4c';
+      g.fillStyle = gold ? '#c99a00' : '#1f8a4c';
       KG.rr(g, sel ? 12 : 7, sel ? 12 : 7, sel ? 232 : 242, sel ? 104 : 114, 12); g.fill();
       g.fillStyle = '#ffffff';
       const size = Math.min(78, 220 / Math.max(1, text.length));
@@ -642,6 +642,7 @@ window.KG = window.KG || {};
       this.updateObjects();
       this.updateSigns();
       this.updateEvents();
+      this.updateCoins();
       this.updateCar();
 
       for (const b of Object.values(this.blocks)) {
@@ -840,7 +841,7 @@ window.KG = window.KG || {};
         s.g.visible = !hide;
         if (hide) continue;
         const it = d.item;
-        this.drawSign(s, d.signText(side), d.selected === side);
+        this.drawSign(s, d.signText(side), d.selected === side, it.event === 'bonus');
         const sg = side === 'L' ? -1 : 1;
         s.g.position.set(sg * (Math.abs(d.branchCenter(side, dist)) + 1.4), 0, -dist);
         const a = Math.max(0, Math.min(1, (dist - 2.5) / 2));
@@ -941,6 +942,33 @@ window.KG = window.KG || {};
       }
     }
 
+    updateCoins() {
+      const d = this.d;
+      for (const o of d.coinObjs) {
+        if (o.z < -BACK || o.z > FAR) continue;
+        const x = d.roadCenterAt(o.z) + d.laneX(o.lane);
+        if (o.kind === 'boost') {
+          const m = this.acquire('boostpad', () => {
+            const b = new ModelBuilder();
+            b.box(0, 0, 0, 0.9, 0.04, 1.3, '#1f6fb8');
+            for (let i = 0; i < 3; i++) for (const sx of [-1, 1]) b.box(sx * 0.18, 0.04, -0.4 + i * 0.4, 0.34, 0.03, 0.1, '#7ee0ff', true);
+            return b.build(this.mats);
+          });
+          m.position.set(x, 0.05, -o.z);
+          m.rotation.set(0, 0, 0);
+        } else {
+          const m = this.acquire('coin', () => {
+            const b = new ModelBuilder();
+            b.box(0, -0.25, 0, 0.5, 0.5, 0.1, '#ffd54a');
+            b.box(0, -0.15, 0, 0.18, 0.3, 0.12, '#fff2a8', true);
+            return b.build(this.mats);
+          });
+          m.position.set(x, 0.75 + Math.sin(d.clock * 3 + o.z) * 0.08, -o.z);
+          m.rotation.set(0, d.clock * 3 + o.z, 0);
+        }
+      }
+    }
+
     updateCar() {
       const d = this.d;
       const look = KG.carLook();
@@ -954,7 +982,7 @@ window.KG = window.KG || {};
         this.carKey = key;
       }
       const bounce = d.shake ? Math.abs(Math.sin(d.clock * 14)) * 0.03 * (d.speedMul || 0) : 0;
-      this.car.position.set(d.camX, bounce, -1.0);
+      this.car.position.set(d.camX, bounce + (d.jumpH || 0) * 1.4, -1.0);
       this.car.rotation.set(0, -d.carTilt * 0.35, d.carTilt * 0.06);
     }
   }

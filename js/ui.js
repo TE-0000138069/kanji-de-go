@@ -170,7 +170,10 @@ const renderers = {
   },
 
   result(data) {
-    const { results, elapsed, starsN, isBest, noMiss, mode } = data;
+    const { results, elapsed, starsN, isBest, noMiss, mode, coins = 0, missionResults = [] } = data;
+    $('#resCoins').textContent = `${coins}まい`;
+    $('#resMissions').innerHTML = missionResults.map(m => `<div class="${m.now ? 'ok' : m.before ? 'was' : 'ng'}">
+      <span>${m.now ? '✅' : m.before ? '☑️' : '⬜'}</span> ${esc(m.text)} ${m.isNew ? '<b class="new">NEW!</b>' : ''}</div>`).join('');
     const correct = results.filter(r => r.result === 'correct').length;
     $('#resTitle').textContent = noMiss ? 'ノーミス ゴール！' : 'ゴール！';
     $('#resStars').innerHTML = '<span class="off">★★★</span>';
@@ -754,6 +757,7 @@ function startTilt(drive) {
     if (KG.state.settings.tiltInvert) d = -d;
     if (d > 15) drive.select('R');
     else if (d < -15) drive.select('L');
+    else if (Math.abs(d) < 8) drive.centerLane();
   };
   window.addEventListener('devicemotion', tilt.handler);
 }
@@ -773,11 +777,20 @@ function startDrive(stage) {
   // 書きは1問に時間がかかるので、6問にする
   const items = KG.pickDriveQuestions(stage, mode === 'write' ? 6 : 10, mode);
   if (!items.length) { toast('もんだいが ありません'); return; }
+  // イベントゲート：さいごはファイナル、まん中あたりにボーナスとジャンプ
+  if (items.length >= 4) {
+    const mid = KG.shuffle(items.slice(1, -1).map((_, i) => i + 1));
+    items[mid[0]].event = 'bonus';
+    items[mid[1]].event = 'jump';
+    if (items.length >= 8) items[mid[2]].event = 'bonus';
+  }
+  items[items.length - 1].event = 'final';
+  const missions = KG.stageMissions(stage.id, mode, items.length);
   if (KG.state.settings.control === 'tilt' && !tiltGranted) requestTilt(); // タップの流れの中で許可をもらう
 
   show('drive');
   KG.music.play(stage.course.id);
-  const hud = makeHud(items, mode);
+  const hud = makeHud(items, mode, missions);
   ui.drive = new KG.Drive({
     mode,
     canvas: $('#driveCanvas'),
@@ -786,16 +799,23 @@ function startDrive(stage) {
     stageIndex: stage.kind === 'normal' ? stage.idx : Math.floor(Math.random() * 5),
     items,
     hud,
-    onFinish: (results, elapsed) => finishDrive(stage, results, elapsed, mode),
+    onFinish: (results, elapsed, stats) => finishDrive(stage, results, elapsed, mode, missions, stats),
   });
   if (KG.state.settings.control === 'tilt') startTilt(ui.drive);
   const tb = $('#toggleBtn');
   tb.className = 'toggle-btn' + (KG.state.settings.oneHand ? ' on ' + KG.state.settings.hand : '');
 }
 
-function makeHud(items, mode = 'read') {
+function makeHud(items, mode = 'read', missions = []) {
   const wb = $('#writeBox');
   wb.hidden = true;
+  const coinHud = $('#coinHud'), evb = $('#eventBanner'), mc = $('#missionCard');
+  coinHud.querySelector('b').textContent = '0';
+  evb.classList.remove('on');
+  // スタートのときに、このステージのミッションを見せる
+  mc.innerHTML = '<b>ミッション</b>' + missions.map((m, i) => `<div><i class="ico ico-star"></i> ${esc(m.text)}</div>`).join('');
+  mc.classList.add('on');
+  setTimeout(() => mc.classList.remove('on'), 3400);
   const prog = $('#progress');
   prog.innerHTML = items.map(() => '<i></i>').join('');
   const dots = prog.querySelectorAll('i');
@@ -807,6 +827,17 @@ function makeHud(items, mode = 'read') {
   return {
     // 決定ラインまでの残り時間（1→0）
     timer(frac) { bar.style.transform = `scaleX(${Math.max(0, frac)})`; },
+    coins(n, add) {
+      coinHud.querySelector('b').textContent = n;
+      coinHud.classList.remove('pop'); void coinHud.offsetWidth; coinHud.classList.add('pop');
+    },
+    // イベントゲートの案内
+    event(ev) {
+      const text = { bonus: '⭐ ボーナスゲート！ せいかいで コイン 3ばい', jump: '🦘 ジャンプゲート！ せいかいで ジャンプ', final: '🏁 ファイナルゲート！ さいごの もんだい' }[ev];
+      evb.className = 'event-banner' + (ev ? ' on ' + ev : '');
+      evb.textContent = text || '';
+      if (ev) setTimeout(() => evb.classList.remove('on'), 2600);
+    },
     // 書く枠を出す
     writeStart(it) {
       wb.hidden = false;
@@ -897,24 +928,35 @@ function makeHud(items, mode = 'read') {
   };
 }
 
-function finishDrive(stage, results, elapsed, mode = 'read') {
+function finishDrive(stage, results, elapsed, mode = 'read', missions = [], stats = {}) {
   const d = ui.drive;
   d.destroy();
   stopTilt();
   ui.drive = null;
   const correct = results.filter(r => r.result === 'correct').length;
   const noMiss = correct === results.length;
-  const rate = correct / Math.max(1, results.length);
-  const starsN = noMiss ? 3 : rate >= 0.9 ? 2 : rate >= 0.66 ? 1 : 0;
+  // ミッション：何回かに分けて達成してもよい（達成したものは記録に残る）
+  const st = { correct, total: results.length, elapsed, coins: stats.coins || 0, maxCombo: stats.maxCombo || 0, boostHits: stats.boostHits || 0, bonusOk: stats.bonusOk || 0 };
   const rec = KG.state.stages[stage.id] || { stars: 0, best: null };
-  const isBest = starsN > 0 && (rec.best == null || elapsed < rec.best);
-  rec.stars = Math.max(rec.stars, starsN);
+  rec.missions = rec.missions || {};
+  rec.missions[mode] = rec.missions[mode] || [];
+  const done = rec.missions[mode];
+  const missionResults = missions.map(m => {
+    const now = m.ok(st);
+    const isNew = now && !done.includes(m.id);
+    if (isNew) done.push(m.id);
+    return { text: m.text, now, before: !now && done.includes(m.id), isNew };
+  });
+  const starsN = Math.min(3, done.length);
+  const isBest = correct > 0 && (rec.best == null || elapsed < rec.best);
+  rec.stars = Math.max(rec.stars || 0, starsN);
+  KG.state.coins = (KG.state.coins || 0) + st.coins;
   if (isBest) rec.best = +elapsed.toFixed(1);
   KG.state.stages[stage.id] = rec;
   KG.state.stamps.push(KG.today());
   KG.adjustDifficulty();
   KG.save();
-  show('result', { results, elapsed, starsN, isBest, noMiss, mode });
+  show('result', { results, elapsed, starsN: rec.stars, isBest, noMiss, mode, coins: st.coins, missionResults });
   const be = KG.state.parent.breakEvery;
   if (be && ui.sessionPlay >= be * 60) {
     ui.sessionPlay = 0;

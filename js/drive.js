@@ -47,6 +47,16 @@ KG.Drive = class {
     this.carTilt = 0;
     this.bob = 0;
     this.combo = 0;
+    this.maxCombo = 0;
+    // 分かれ道の間の「運転するあそび」：3車線（0=左 1=まんなか 2=右）、コイン、ブースト板
+    this.lane = 1;
+    this.coins = 0;
+    this.coinObjs = [];   // { z, lane, kind: 'coin'|'boost' }
+    this.boostHits = 0;
+    this.bonusOk = 0;
+    this.jumpT = 0;       // ジャンプ中の残り時間
+    this.jumpH = 0;       // ジャンプの高さ（0〜1）
+    this.slowmoT = 0;     // スローモーションの残り時間
     this.boostT = 0;
     this.particles = [];
     this.puffs = [];
@@ -90,6 +100,7 @@ KG.Drive = class {
     this.phase = name;
     this.phaseT = 0;
     this.phaseDur = dur;
+    if (name === 'cruise') this.spawnCoins(dur);
     this.hud.phase(name, this);
   }
 
@@ -112,7 +123,22 @@ KG.Drive = class {
     this.selected = pass ? it.side : it.side === 'L' ? 'R' : 'L';
   }
 
+  laneX(lane) { return (lane - 1) * 0.55 * this.W; }
+  canSteer() { return !this.paused && (this.phase === 'cruise' || this.phase === 'detour' || (this.phase === 'start' && this.phaseT > 1.9)); }
+
+  // 車線を変える（問題が出ていないとき）
+  steer(side) {
+    if (!this.canSteer()) return;
+    const next = side === 'L' ? Math.max(0, this.lane - 1) : Math.min(2, this.lane + 1);
+    if (next === this.lane) return;
+    this.lane = next;
+    KG.audio.select(side);
+  }
+  // 傾け操作で、まっすぐにもどしたとき
+  centerLane() { if (this.canSteer()) this.lane = 1; }
+
   select(side) {
+    if (this.phase !== 'question') return this.steer(side);
     if (!this.canSelect() || this.selected === side) return;
     if (this.selected) this.switchCount++;
     this.selected = side;
@@ -123,6 +149,7 @@ KG.Drive = class {
   }
 
   toggle() {
+    if (this.phase !== 'question') { if (this.canSteer()) { this.lane = (this.lane + 1) % 3; KG.audio.select('R'); } return; }
     if (!this.canSelect()) return;
     this.select(this.selected === 'L' ? 'R' : this.selected === 'R' ? 'L' : (KG.state.settings.hand === 'left' ? 'L' : 'R'));
   }
@@ -153,6 +180,7 @@ KG.Drive = class {
     let speedMul = 1;
     let advance = true;
     this.clock += dt;
+    if (this.slowmoT > 0) { this.slowmoT -= dt; dt *= 0.35; }
 
     if (this.phase === 'question' && this.mode === 'write') {
       // 書きのとき：分かれ道の手前で止まって、書き終わるのを待つ（待つあいだは時間を数えない）
@@ -213,7 +241,7 @@ KG.Drive = class {
       case 'goal':
         if (this.phaseT >= 2.4 && !this.finished) {
           this.finished = true;
-          this.onFinish(this.results, this.elapsed);
+          this.onFinish(this.results, this.elapsed, { coins: this.coins, maxCombo: this.maxCombo, boostHits: this.boostHits, bonusOk: this.bonusOk });
         }
         break;
     }
@@ -232,16 +260,39 @@ KG.Drive = class {
     this.skyBlend = Math.min(1, this.skyBlend + dt / 2.5);
 
     // カメラ（車）の左右の位置
-    let target = 0;
+    let target = this.laneX(this.lane);
     if (this.phase === 'question') target = this.selected === 'L' ? -0.45 * this.W : this.selected === 'R' ? 0.45 * this.W : 0;
     else if (this.phase === 'after') target = this.branchCenter(this.chosen, 1.5);
-    else if (this.phase === 'detour') target = this.detourCenter(1.5);
+    else if (this.phase === 'detour') target = this.detourCenter(1.5) + this.laneX(this.lane);
     const prev = this.camX;
     const k = this.phase === 'after' || this.phase === 'detour' ? 10 : 6;
     this.camX += (target - this.camX) * Math.min(1, dt * k);
     const vx = (this.camX - prev) / Math.max(dt, 1e-3);
     this.carTilt += (Math.max(-1, Math.min(1, vx * 0.6)) - this.carTilt) * Math.min(1, dt * 8);
     this.bob = this.shake ? Math.sin(this.track * 1.7) * 0.004 * speedMul : 0;
+
+    // コインとブースト板
+    for (const o of this.coinObjs) {
+      o.z -= move;
+      if (!o.got && o.z < 1.7 && o.z > 0.5 && Math.abs(this.camX - this.roadCenterAt(1.0) - this.laneX(o.lane)) < 0.32) {
+        o.got = true;
+        if (o.kind === 'boost') {
+          this.boostT = 1.6;
+          this.boostHits++;
+          this.addCoins(3);
+          KG.audio.boost();
+        } else {
+          this.addCoins(1);
+          KG.audio.coin();
+        }
+      }
+    }
+    this.coinObjs = this.coinObjs.filter(o => o.z > 0.2 && !o.got);
+    // ジャンプ
+    if (this.jumpT > 0) {
+      this.jumpT = Math.max(0, this.jumpT - dt);
+      this.jumpH = Math.sin(Math.PI * (1 - this.jumpT / 1.2));
+    } else this.jumpH = 0;
 
     this.updateEffects(dt, speedMul);
   }
@@ -283,6 +334,34 @@ KG.Drive = class {
     this.events = this.events.filter(e => e.t < (e.dur || 30) && (e.vx ? e.x > -0.4 && e.x < 1.4 : true) && !(e.s != null && e.s - this.track < 1));
   }
 
+  addCoins(n) {
+    this.coins += n;
+    this.hud.coins(this.coins, n);
+  }
+
+  // いまの道のまん中（遠回りの道は くねくねしている）
+  roadCenterAt(z) { return this.phase === 'detour' ? this.detourCenter(z) : 0; }
+
+  // 分かれ道の間に、コインを並べる（問題が出るまでに通りすぎる長さだけ）
+  spawnCoins(dur) {
+    const len = dur * this.SPEED - 6;
+    if (len < 10) return;
+    const step = 2.6, n = Math.min(9, Math.floor((len - 8) / step));
+    const kind = Math.floor(Math.random() * 4);
+    const start = Math.floor(Math.random() * 3);
+    const lanes = [];
+    for (let i = 0; i < n; i++) {
+      if (kind === 0) lanes.push(start);                                   // まっすぐ
+      else if (kind === 1) lanes.push([0, 1, 2, 1][i % 4]);                // じぐざぐ
+      else if (kind === 2) lanes.push(i < n / 2 ? start : (start + 2) % 3); // とちゅうで車線を変える
+      else lanes.push(Math.floor(i / 3) % 3);                              // 3つずつ移る
+    }
+    // ときどき、最初にブースト板
+    let z = 8;
+    if (Math.random() < 0.5) { this.coinObjs.push({ z, lane: lanes[0], kind: 'boost' }); z += step * 1.5; }
+    lanes.forEach(l => { this.coinObjs.push({ z, lane: l, kind: 'coin' }); z += step; });
+  }
+
   spawnEvent(type) {
     const dir = Math.random() < 0.5 ? 1 : -1;
     if (type === 'balloon') this.events.push({ type, t: 0, x: dir > 0 ? -0.1 : 1.1, vx: dir * 0.025, y: 0.15 + Math.random() * 0.15, c: Math.floor(Math.random() * 3) });
@@ -300,7 +379,10 @@ KG.Drive = class {
     this.forkZ = this.DEC_Z + this.SPEED * this.T;
     this.writeDone = false;
     this.writePass = null;
+    this.lane = 1;
     this.setPhase('question', this.T);
+    this.hud.event(this.item.event || null);
+    if (this.item.event === 'final') KG.audio.drumroll(this.T);
     KG.music.setIntensity(1);
     const q = this.item.q;
     if (this.mode === 'write') {
@@ -334,7 +416,13 @@ KG.Drive = class {
     this.setPhase('after', 0);
     if (result === 'correct') {
       this.combo++;
+      this.maxCombo = Math.max(this.maxCombo, this.combo);
       this.boostT = 1.4;
+      const ev = it.event;
+      this.addCoins(ev === 'bonus' ? 15 : 5);
+      if (ev === 'bonus') this.bonusOk++;
+      if (ev === 'jump') { this.jumpT = 1.2; setTimeout(() => KG.audio.jump(), 150); }
+      if (ev === 'final') { this.slowmoT = 1.1; setTimeout(() => KG.audio.comboFanfare(10), 200); this.burst(60); }
       KG.audio.correct(this.combo);
       this.burst();
       if ([3, 5, 7, 10].includes(this.combo)) {
@@ -469,6 +557,7 @@ KG.Drive = class {
       pFar = pNear;
     }
 
+    this.drawCoins2d();
     if (this.camZone.tunnel) this.drawHeadlights();
     this.drawWeather();
     this.drawSpeedLines(horizon);
@@ -497,6 +586,28 @@ KG.Drive = class {
       ctx.fillRect(p.x - p.r, p.y - p.r, p.r * 2, p.r * 2);
     }
     ctx.globalAlpha = 1;
+  }
+
+  drawCoins2d() {
+    const ctx = this.ctx;
+    for (const o of this.coinObjs.slice().sort((a, b) => b.z - a.z)) {
+      if (o.z < 1.05 || o.z > this.FAR) continue;
+      const p = this.proj(o.z);
+      const x = this.sx(this.roadCenterAt(o.z) + this.laneX(o.lane), p.ux);
+      if (o.kind === 'boost') {
+        ctx.fillStyle = 'rgba(80,200,255,0.85)';
+        for (let i = 0; i < 2; i++) {
+          const y = p.y - i * p.uy * 0.25;
+          ctx.beginPath(); ctx.moveTo(x - p.ux * 0.35, y); ctx.lineTo(x, y - p.uy * 0.2); ctx.lineTo(x + p.ux * 0.35, y); ctx.lineTo(x, y - p.uy * 0.08); ctx.fill();
+        }
+      } else {
+        const r = p.uy * 0.22, wob = Math.abs(Math.cos(this.clock * 4 + o.z));
+        ctx.fillStyle = '#ffd54a';
+        ctx.beginPath(); ctx.ellipse(x, p.y - p.uy * 0.5, r * Math.max(0.2, wob), r, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#e0a800';
+        ctx.beginPath(); ctx.ellipse(x, p.y - p.uy * 0.5, r * Math.max(0.1, wob) * 0.5, r * 0.55, 0, 0, Math.PI * 2); ctx.fill();
+      }
+    }
   }
 
   star(x, y, r) {
@@ -731,7 +842,7 @@ KG.Drive = class {
       ctx.fillStyle = '#7a7f8a';
       ctx.fillRect(cx - bw * 0.03, bottom, bw * 0.06, p.y - bottom);
       const sel = this.selected === side;
-      ctx.fillStyle = '#1f8a4c';
+      ctx.fillStyle = it.event === 'bonus' ? '#c99a00' : '#1f8a4c';
       ctx.strokeStyle = sel ? '#ffd54a' : '#ffffff';
       ctx.lineWidth = Math.max(2, bh * (sel ? 0.1 : 0.05));
       KG.rr(ctx, cx - bw / 2, bottom - bh, bw, bh, bh * 0.15);
@@ -876,7 +987,7 @@ KG.Drive = class {
     const ctx = this.ctx, w = this.w, h = this.h;
     const cw = Math.min(w * 0.2, h * 0.28), ch = cw * 0.62;
     const bounce = this.shake ? Math.sin(this.clock * 18) * ch * 0.01 * (this.speedMul || 0) : 0;
-    const x = w / 2, y = h - ch * 0.35 - h * 0.03 + bounce;
+    const x = w / 2, y = h - ch * 0.35 - h * 0.03 + bounce - this.jumpH * h * 0.12;
     const look = KG.carLook();
     let color = look.color;
     if (color === 'rainbow') {

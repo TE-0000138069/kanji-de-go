@@ -444,6 +444,35 @@ KG.pickPitinReadChars = function (missed) {
   return list.slice(0, 3);
 };
 
+// ---- ミッション（ステージごとに3つ。達成した数が星の数）----
+// stats: { correct, total, coins, maxCombo, boostHits, bonusOk, elapsed }
+KG.stageMissions = function (stageId, mode, total) {
+  const T = KG.questionTime();
+  const g = (KG.state.profile && KG.state.profile.grade) || 2;
+  const gap = g <= 2 ? 6 : 5;
+  const need = Math.ceil(total * 0.7);
+  const pool = [
+    { id: 'nomiss', text: 'ノーミスで ゴール', ok: s => s.correct === s.total },
+    { id: 'combo3', text: '3れんぞく せいかい', ok: s => s.maxCombo >= 3 },
+    { id: 'coins', text: `コインを ${mode === 'write' ? 35 : 60}まい あつめる`, ok: s => s.coins >= (mode === 'write' ? 35 : 60) },
+    { id: 'bonus', text: 'ボーナスゲートで せいかい', ok: s => s.bonusOk >= 1 },
+    { id: 'boost', text: 'ブーストを 2かい ふむ', ok: s => s.boostHits >= 2 },
+  ];
+  if (total >= 10) pool.push({ id: 'combo5', text: '5れんぞく せいかい', ok: s => s.maxCombo >= 5 });
+  // タイムは、読みで走るときだけ（ゆっくりモードでは出さない）
+  if (mode !== 'write' && !KG.state.settings.slow) {
+    const sec = Math.round(total * (T + gap + 1.5));
+    pool.push({ id: 'time', text: `${sec}びょう いないで ゴール`, ok: s => s.elapsed <= sec });
+  }
+  // ステージごとに決まった2つを選ぶ（同じステージなら、いつも同じミッション）
+  let h = 0;
+  for (const ch of stageId + mode) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const picks = [];
+  const rest = pool.slice();
+  while (picks.length < 2 && rest.length) picks.push(rest.splice(h % rest.length, 1)[0]), (h = (h * 1103515245 + 12345) >>> 0);
+  return [{ id: 'clear', text: `${need}もん いじょう せいかい`, ok: s => s.correct >= need }, ...picks];
+};
+
 // ---- ステージ ----
 KG.stageId = (courseId, idx) => `${KG.stagePrefix || 'g' + KG.grade}-${courseId}-${idx}`;
 

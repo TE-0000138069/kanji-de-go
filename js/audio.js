@@ -334,6 +334,42 @@ window.KG = window.KG || {};
       osc('triangle', side === 'L' ? 988 : 1319, t, 0.06, seBus, 0.18);
       osc('sine', side === 'L' ? 1976 : 2637, t, 0.03, seBus, 0.06);
     },
+    // コイン：チャリン
+    coin() {
+      if (!ensure()) return;
+      const t = ctx.currentTime + 0.005;
+      osc('square', mtof(95), t, 0.06, seBus, 0.05);
+      osc('square', mtof(100), t + 0.06, 0.18, seBus, 0.05);
+      bell(t + 0.06, 100, 0.2, seBus, 0.08);
+    },
+    // ブースト板：ぐーんと加速
+    boost() {
+      if (!ensure()) return;
+      const t = ctx.currentTime + 0.005;
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sawtooth';
+      o.frequency.setValueAtTime(200, t); o.frequency.exponentialRampToValueAtTime(900, t + 0.4);
+      env(g, t, 0.01, 0.08, 0.45);
+      o.connect(g).connect(seBus); o.start(t); o.stop(t + 0.5);
+      whoosh(t, 0.6, 0.3, 300, 6000);
+    },
+    // ジャンプ：ぴょーん
+    jump() {
+      if (!ensure()) return;
+      const t = ctx.currentTime + 0.005;
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'square';
+      o.frequency.setValueAtTime(300, t); o.frequency.exponentialRampToValueAtTime(1200, t + 0.25);
+      env(g, t, 0.01, 0.07, 0.3);
+      o.connect(g).connect(seBus); o.start(t); o.stop(t + 0.35);
+    },
+    // ファイナルゲート：ドラムロール（だんだん大きく）
+    drumroll(dur) {
+      if (!ensure()) return;
+      const t0 = ctx.currentTime + 0.05;
+      const n = Math.floor((dur * 0.9) / 0.06);
+      for (let i = 0; i < n; i++) noise(t0 + i * 0.06, 0.05, seBus, 0.04 + (0.16 * i) / n, 'bandpass', 1800, 0.8);
+    },
     // スタートのカウントダウン（n=0 で GO）
     count(n) {
       if (!ensure()) return;

@@ -338,3 +338,26 @@ html, body { background: #5fb4f2; }
 .user-btn { position: absolute; left: max(16px, env(safe-area-inset-left)); top: max(16px, env(safe-area-inset-top)); font-size: 0.8em; }
 .user-btn small { font-size: 0.75em; opacity: 0.9; }
 .parent .pname { font-size: 16px; padding: 4px 8px; width: 9em; border: 2px solid var(--edge); }
+
+/* ---- コイン・イベントゲート・ミッション ---- */
+.ico-coin { background-image: var(--ico-coin); }
+.coin-hud { position: absolute; top: max(60px, calc(env(safe-area-inset-top) + 52px)); right: max(16px, env(safe-area-inset-right)); background: rgba(0,0,0,0.5); color: #ffd54a; padding: 3px 12px; font-family: var(--pix); font-size: calc(22px * var(--ts)); border: 2px solid #1b1b1b; }
+.coin-hud b { font-weight: normal; color: #fff; }
+.coin-hud.pop { animation: coinPop 0.25s ease-out; }
+@keyframes coinPop { 50% { transform: scale(1.25); } }
+.event-banner { position: absolute; top: 30%; left: 50%; transform: translate(-50%, -10px) scale(0.8); font-family: var(--pix); font-size: calc(30px * var(--ts)); padding: 8px 22px; border: 3px solid #1b1b1b; color: #fff; text-shadow: 2px 2px 0 #000; opacity: 0; transition: opacity 0.2s, transform 0.25s; white-space: nowrap; pointer-events: none; }
+.event-banner.on { opacity: 1; transform: translate(-50%, 0) scale(1); }
+.event-banner.bonus { background: linear-gradient(#ffd54a, #e0a800); color: #4a3200; text-shadow: none; }
+.event-banner.jump { background: #3d8bff; }
+.event-banner.final { background: #c0392b; animation: finalPulse 0.4s ease-in-out infinite alternate; }
+@keyframes finalPulse { to { box-shadow: 0 0 24px 8px rgba(255, 90, 79, 0.8); } }
+.mission-card { position: absolute; top: 18%; left: 50%; transform: translateX(-50%); background: var(--panel); border: 3px solid var(--edge); box-shadow: inset 3px 3px 0 #fff, inset -3px -3px 0 #555; padding: 10px 24px; font-family: var(--pix); color: var(--ink); opacity: 0; transition: opacity 0.3s; pointer-events: none; font-size: calc(20px * var(--ts)); }
+.mission-card.on { opacity: 1; }
+.mission-card b { display: block; text-align: center; font-weight: normal; color: #8a5a00; margin-bottom: 4px; }
+.mission-card .ico { width: 1em; height: 1em; }
+.res-missions { display: flex; flex-direction: column; gap: 4px; background: var(--panel); border: 3px solid var(--edge); box-shadow: inset 3px 3px 0 #fff, inset -3px -3px 0 #555; padding: 8px 18px; font-family: var(--pix); color: var(--ink); margin: 4px 0 8px; }
+.res-missions .ng { color: #6b6b6b; }
+.res-missions .new { color: #c0392b; font-weight: normal; animation: tagpulse 0.5s ease-in-out infinite alternate; display: inline-block; }
+.combo { top: max(110px, calc(env(safe-area-inset-top) + 100px)) !important; }
+.mission-card { top: 9% !important; }
+.combo { top: 27% !important; }
