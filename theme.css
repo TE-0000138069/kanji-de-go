@@ -497,3 +497,10 @@ html, body { background: #5fb4f2; }
 .title .start-btn { margin-bottom: auto; font-size: clamp(22px, 4vw, 34px) !important; padding: 0.45em 2.4em !important; animation: breathe 1.4s ease-in-out infinite, startIn 0.6s 0.4s ease-out both; }
 @keyframes startIn { from { opacity: 0; transform: translateY(20px); } }
 @media (max-height: 520px) { .screen.title { gap: 6px; } .title .start-btn { font-size: 20px !important; } }
+
+/* ---- のりもののコース（v1.6） ---- */
+.tabs button.extra { background-image: linear-gradient(rgba(255, 213, 74, 0.25), rgba(255, 213, 74, 0.05)); }
+.mp-row.lap { color: #8a5a00; }
+.mp-row.teaser { color: #6b6b6b; animation: tagpulse 0.9s ease-in-out infinite alternate; transform-origin: left center; }
+.vehicle-box .vm-icon { font-size: 96px; line-height: 1.1; animation: vmIn 0.8s cubic-bezier(.2, 1.6, .4, 1) both, bob 1.2s 0.8s ease-in-out infinite alternate; }
+@keyframes vmIn { from { transform: scale(0) rotate(-30deg); } }

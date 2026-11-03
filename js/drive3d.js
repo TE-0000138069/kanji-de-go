@@ -12,10 +12,12 @@ window.KG = window.KG || {};
     'もりの みち': ['grass', 'mountains'], 'おはなばたけ': ['grass', 'hills'], 'かわの はし': ['grass', 'mountains'],
     'トンネル': ['stone', 'tunnel'], 'ゆきやま': ['snow', 'mountains'],
   };
+  // ふね・ひこうきのエリアは、エリアの sea / air で地形を決める
+  const profileOf = zone => zone.sea ? ['sea', 'sea'] : zone.air ? ['air', zone.air] : PROFILE[zone.name] || ['grass', 'hills'];
   // 建物や木の、横はばの半分（道にはみ出さないように置くため）
   const HALF = { house: 1.2, shop: 1.1, building: 1.2, tree: 0.9, pine: 0.9, snowpine: 0.9, palm: 0.7, parasol: 0.9, flowers: 0.9,
     bush: 0.7, lamp: 0.2, signal: 0.5, mailbox: 0.3, vending: 0.4, fountain: 0.9, container: 1.2, lighthouse: 0.7, rock: 0.7,
-    windmill: 0.8, torii: 1.1, snowman: 0.5 };
+    windmill: 0.8, torii: 1.1, snowman: 0.5, buoy: 0.3, island: 1.7, iceberg: 1.3, cloud: 2.0, lhisle: 1.3 };
   const SHOP_SIGNS = ['肉', '魚', '茶', '米', '本', '花', '店', '絵', '楽', '麦'];
   const FAR = 70, BACK = 4;
 
@@ -298,18 +300,126 @@ window.KG = window.KG || {};
       m.box(0, 1.3, 0, 0.5, 0.35, 0.5, '#333333');
     },
     tlight(m) { m.box(0, 0, 0, 0.12, 0.14, 0.7, '#ffcf7a', true); },
+    // ---- ふね・ひこうきのコース ----
+    buoy(m, v) {
+      const c = v % 2 ? '#ff5a4f' : '#ffd54a';
+      m.box(0, 0, 0, 0.45, 0.45, 0.45, c);
+      m.box(0, 0.45, 0, 0.3, 0.12, 0.3, '#ffffff');
+      m.box(0, 0.57, 0, 0.08, 0.35, 0.08, '#5b6470');
+      m.box(0, 0.92, 0, 0.16, 0.16, 0.16, c, true);
+    },
+    island(m, v) {
+      m.box(0, -0.3, 0, 3.4, 0.5, 2.8, '#e9d394');
+      m.box(0, 0.2, 0, 2.4, 0.25, 2.0, '#f3dc9b');
+      m.box(0.2, 0.45, 0.1, 1.2, 0.15, 1.0, '#6cbf5b');
+      // ヤシの木を、島の上にずらして足す
+      const p = new ModelBuilder();
+      MODELS.palm(p, v);
+      for (const k of ['lit', 'glow']) {
+        const src = p.parts[k], dst = m.parts[k];
+        for (let i = 0; i < src.p.length; i += 3) dst.p.push(src.p[i] - 0.4, src.p[i + 1] + 0.45, src.p[i + 2] - 0.2);
+        dst.n.push(...src.n); dst.c.push(...src.c);
+      }
+    },
+    lhisle(m) {
+      m.box(0, -0.3, 0, 2.4, 0.8, 2.2, '#8d939b');
+      m.box(0.3, 0.5, 0.2, 1.6, 0.3, 1.4, '#a4aab2');
+      for (let i = 0; i < 5; i++) m.box(0, 0.8 + i * 0.9, 0, 1.3 - i * 0.1, 0.9, 1.3 - i * 0.1, i % 2 ? '#e53935' : '#ffffff');
+      m.box(0, 5.3, 0, 0.75, 0.55, 0.75, '#ffe58a', true);
+      m.box(0, 5.85, 0, 0.95, 0.2, 0.95, '#e53935');
+    },
+    iceberg(m, v) {
+      const h = 1.6 + v * 0.5;
+      m.box(0, -0.4, 0, 2.6, h, 2.2, '#f4fbff');
+      m.box(0.3, h - 0.4, 0.1, 1.6, 0.9 + v * 0.2, 1.4, '#ffffff');
+      m.box(-0.2, h + 0.4, 0, 0.8, 0.6, 0.8, '#e6f4ff');
+      m.box(0, -0.4, 0, 2.7, 0.3, 2.3, '#bfe3f7');
+    },
+    cloud(m, v) {
+      const w = 2.6 + v * 0.8;
+      m.box(0, 0, 0, w, 0.8, 1.8, '#ffffff');
+      m.box(0.3, 0.8, 0, w * 0.6, 0.6, 1.4, '#ffffff');
+      m.box(-w * 0.35, 0.4, 0.3, w * 0.4, 0.6, 1.2, '#f2f7ff');
+    },
+    // ひこうきで くぐる わ
+    ring(m, v) {
+      const c = v ? '#ffd54a' : '#ff9f43';
+      m.box(-1.15, 0, 0, 0.18, 2.2, 0.18, c, true);
+      m.box(1.15, 0, 0, 0.18, 2.2, 0.18, c, true);
+      m.box(0, 2.1, 0, 2.48, 0.18, 0.18, c, true);
+      m.box(0, -0.08, 0, 2.48, 0.18, 0.18, c, true);
+    },
   };
 
   // ---- 車（形・タイヤ・やね・もよう・色の組み合わせ）----
   // look: { color: '#ff5a4f' か 'rainbow', body, wheel, roof, decal }
   const RAINBOW = ['#ff4d4d', '#ff9f43', '#ffe14d', '#4cd964', '#4da6ff', '#7d5fff'];
+  // 色をぬる箱。にじいろのときは、前から後ろへ6色のしま模様にする
+  const painter = (m, look) => (x, y, z, w, h, d) => {
+    if (look.color !== 'rainbow') return m.box(x, y, z, w, h, d, look.color);
+    for (let i = 0; i < 6; i++) m.box(x, y, z - d / 2 + (d / 6) * (i + 0.5), w, h, d / 6, RAINBOW[i]);
+  };
+  // のりもの（くるま・ふね・ひこうき）。色・やね・もようは車庫のアイテムをそのまま使う
+  function vehicleModel(m, look, vehicle) {
+    if (vehicle === 'ship') return shipModel(m, look);
+    if (vehicle === 'plane') return planeModel(m, look);
+    return carModel(m, look);
+  }
+  function roofItem(m, look, y, z) {
+    if (look.roof === 'flag') {
+      m.box(0.3, y, z, 0.06, 1.0, 0.06, '#dddddd');
+      m.box(0.56, y + 0.62, z, 0.5, 0.34, 0.04, '#ff5a4f');
+    } else if (look.roof === 'crown') {
+      m.box(0, y, z, 0.62, 0.2, 0.62, '#ffd54a');
+      for (const [x, dz] of [[-0.25, -0.25], [0.25, -0.25], [-0.25, 0.25], [0.25, 0.25]]) m.box(x, y + 0.2, z + dz, 0.12, 0.2, 0.12, '#ffd54a');
+    } else if (look.roof === 'siren') {
+      m.box(-0.22, y, z, 0.32, 0.2, 0.22, '#ff3030', true);
+      m.box(0.22, y, z, 0.32, 0.2, 0.22, '#3d8bff', true);
+    }
+  }
+  function shipModel(m, look) {
+    const paint = painter(m, look), glass = '#a9dcff';
+    paint(0, -0.15, 0.05, 1.2, 0.5, 2.3);
+    paint(0, -0.05, -1.2, 0.8, 0.4, 0.3);
+    paint(0, 0.05, -1.45, 0.4, 0.3, 0.25);
+    m.box(0, 0.2, 0.05, 1.22, 0.07, 2.32, '#ffffff');
+    m.box(0, 0.35, 0.1, 1.05, 0.06, 2.1, '#d7c6a5');
+    m.box(0, 0.41, 0.4, 0.82, 0.6, 0.95, '#ffffff');
+    m.box(0, 0.68, -0.09, 0.64, 0.2, 0.03, glass);
+    for (const sx of [-1, 1]) m.box(sx * 0.415, 0.68, 0.4, 0.03, 0.2, 0.7, glass);
+    m.box(0, 1.01, 0.62, 0.3, 0.4, 0.3, look.color === 'rainbow' ? '#ffd54a' : look.color);
+    m.box(0, 1.41, 0.62, 0.32, 0.1, 0.32, '#2b2d42');
+    m.box(-0.4, 0.1, 1.21, 0.2, 0.12, 0.03, '#ff2a2a', true);
+    m.box(0.4, 0.1, 1.21, 0.2, 0.12, 0.03, '#ff2a2a', true);
+    if (look.decal === 'star' || look.decal === 'fire') for (const sx of [-1, 1]) m.box(sx * 0.61, -0.05, -0.2, 0.02, 0.22, 0.6, look.decal === 'star' ? '#ffd54a' : '#ff9f43', true);
+    roofItem(m, look, 1.01, 0.1);
+  }
+  function planeModel(m, look) {
+    const paint = painter(m, look), glass = '#a9dcff';
+    paint(0, 0.1, 0, 0.62, 0.58, 2.3);
+    m.box(0, 0.15, -1.2, 0.48, 0.48, 0.12, '#dddddd');
+    paint(0, 0.32, -0.2, 3.2, 0.1, 0.75);
+    paint(0, 0.36, 1.0, 1.3, 0.08, 0.42);
+    paint(0, 0.44, 1.05, 0.08, 0.6, 0.38);
+    m.box(0, 0.68, -0.35, 0.44, 0.24, 0.65, glass);
+    m.box(-1.6, 0.32, -0.2, 0.12, 0.12, 0.3, '#ff2a2a', true);
+    m.box(1.6, 0.32, -0.2, 0.12, 0.12, 0.3, '#33e07a', true);
+    m.box(0, 0.25, 1.16, 0.2, 0.12, 0.03, '#ffffff', true);
+    if (look.decal === 'star' || look.decal === 'fire') for (const sx of [-1, 1]) m.box(sx * 0.9, 0.43, -0.2, 0.5, 0.02, 0.4, look.decal === 'star' ? '#ffd54a' : '#ff9f43', true);
+    roofItem(m, look, 0.92, -0.35);
+  }
+  function propeller(mats) {
+    const b = new ModelBuilder();
+    b.box(0, -0.7, 0, 0.14, 1.4, 0.04, '#333333');
+    b.box(0, -0.07, 0, 1.4, 0.14, 0.04, '#333333');
+    b.box(0, -0.1, -0.02, 0.18, 0.18, 0.06, '#ffd54a');
+    const g = b.build(mats);
+    g.name = 'prop';
+    g.position.set(0, 0.42, -1.29);
+    return g;
+  }
   function carModel(m, look) {
-    const rainbow = look.color === 'rainbow';
-    // 色をぬる箱。にじいろのときは、前から後ろへ6色のしま模様にする
-    const paint = (x, y, z, w, h, d) => {
-      if (!rainbow) return m.box(x, y, z, w, h, d, look.color);
-      for (let i = 0; i < 6; i++) m.box(x, y, z - d / 2 + (d / 6) * (i + 0.5), w, h, d / 6, RAINBOW[i]);
-    };
+    const paint = painter(m, look);
     const glass = '#a9dcff';
     let half = 0.55, len = 0.6, rear = 0.95, roofY = 1.04, roofZ = 0.1;
     if (look.body === 'truck') {
@@ -433,11 +543,13 @@ window.KG = window.KG || {};
         bldg: [L(T.bldg), L(T.bldg), L(T.roof), L(T.roof), L(T.bldg), L(T.bldg)],
         water: L(T.water, { transparent: true, opacity: 0.88 }),
         rail: L(T.pave),
+        cloud: new THREE.MeshLambertMaterial({ color: '#ffffff', emissive: '#8a96a8', transparent: true, opacity: 0.94 }),
+        autumn: [L(T.grassSide, { color: '#ffb36b' }), L(T.grassSide, { color: '#ffb36b' }), L(T.grassTop, { color: '#ff9a3c' }), L(T.dirt), L(T.grassSide, { color: '#ffb36b' }), L(T.grassSide, { color: '#ffb36b' })],
       };
       this.blocks = {};
       for (const [k, mat] of Object.entries(defs)) {
         const g = k === 'water' ? new THREE.BoxGeometry(1, 0.8, 1) : k === 'rail' ? new THREE.BoxGeometry(0.2, 0.5, 1) : geo;
-        const max = k === 'grass' || k === 'dirt' || k === 'stone' || k === 'bldg' ? 12000 : 7000;
+        const max = k === 'grass' || k === 'dirt' || k === 'stone' || k === 'bldg' || k === 'snow' || k === 'autumn' ? 12000 : 7000;
         const mesh = new THREE.InstancedMesh(g, mat, max);
         mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         mesh.frustumCulled = false;
@@ -507,6 +619,17 @@ window.KG = window.KG || {};
         this.clouds.push(c);
       }
       this.skyKey = '';
+      // よぞらの星
+      const sp = [];
+      for (let i = 0; i < 260; i++) {
+        const a = rnd(i, 61) * Math.PI * 2, e = 0.12 + rnd(i, 62) * 1.3;
+        sp.push(Math.cos(a) * Math.cos(e) * 250, Math.sin(e) * 250, Math.sin(a) * Math.cos(e) * 250);
+      }
+      const sg = new THREE.BufferGeometry();
+      sg.setAttribute('position', new THREE.Float32BufferAttribute(sp, 3));
+      this.stars = new THREE.Points(sg, new THREE.PointsMaterial({ color: '#ffffff', size: 2, sizeAttenuation: false, fog: false }));
+      this.stars.visible = false;
+      this.scene.add(this.stars);
     }
     setSky(top, bottom, blend2) {
       const key = top + bottom + (blend2 || '');
@@ -664,20 +787,31 @@ window.KG = window.KG || {};
       const top = mix(a[0], b[0]), bottom = mix(a[1], b[1]);
       this.setSky(top, bottom);
       this.sky.position.copy(this.camera.position);
-      const sunset = d.skyCur.sun;
+      const sunset = d.skyCur.sun, night = d.skyCur.night;
       this.sunMesh.position.set(this.camera.position.x + (sunset ? 60 : -90), sunset ? 18 : 80, -240);
-      this.sunMesh.material.color.set(sunset ? '#ffb347' : '#fff6c9');
-      // トンネルの中は暗く、夕方はオレンジに
-      const dark = d.camZone.tunnel ? 0.25 : 1;
+      this.sunMesh.material.color.set(night ? '#f4f1d0' : sunset ? '#ffb347' : '#fff6c9');
+      this.sunMesh.scale.setScalar(night ? 0.6 : 1);
+      this.stars.visible = !!night;
+      this.blocks.cloud.mesh.material.emissive.set(night ? '#1c2440' : '#8a96a8');
+      this.stars.position.copy(this.camera.position);
+      // トンネルの中は暗く、夕方はオレンジに。よぞらは少し暗く
+      const dark = d.camZone.tunnel ? 0.25 : night ? 0.55 : 1;
       this.hemi.intensity += (1.6 * dark - this.hemi.intensity) * 0.08;
       this.sun.intensity += (2.2 * dark - this.sun.intensity) * 0.08;
       this.sun.color.set(sunset ? '#ffc58a' : '#ffffff');
       this.scene.fog.near = d.camZone.tunnel ? 10 : 32;
       // 雲
       const span = 220;
+      const air = d.camZone.air;
       this.clouds.forEach((c, i) => {
-        const x = ((i * 47 + d.clock * 1.5) % span) - span / 2 + this.camera.position.x;
-        c.position.set(x, 32 + (i % 3) * 6, -60 - ((i * 37) % 120));
+        if (air) {
+          // 空のコースでは、雲が横を通りすぎていく
+          const side = i % 2 ? 1 : -1, zz = (((i * 29 - d.track * 0.9) % 130) + 130) % 130;
+          c.position.set(this.camera.position.x + side * (11 + ((i * 7) % 26)), air === 'clouds' ? -7 + (i % 4) * 2 : 3 + (i % 3) * 4, -zz + 4);
+        } else {
+          const x = ((i * 47 + d.clock * 1.5) % span) - span / 2 + this.camera.position.x;
+          c.position.set(x, 32 + (i % 3) * 6, -60 - ((i * 37) % 120));
+        }
         c.visible = !d.camZone.tunnel;
       });
     }
@@ -708,9 +842,10 @@ window.KG = window.KG || {};
       for (let r = r0; r <= r1; r++) {
         const dist = r + 0.5 - d.track, z = -dist;
         const zone = d.zoneAt(r + 0.5);
-        const prof = PROFILE[zone.name] || ['grass', 'hills'];
+        const prof = profileOf(zone);
         const e = d.edges(dist);
         const N = dist < 28 ? 18 : 12;
+        if (prof[0] === 'sea' || prof[0] === 'air') { this.openTerrain(r, z, e, N, prof, zone); continue; }
         const tunnel = prof[1] === 'tunnel';
         for (const side of [-1, 1]) {
           const water = zone[side < 0 ? 'left' : 'right'];
@@ -748,6 +883,40 @@ window.KG = window.KG || {};
       }
     }
 
+    // 海（ぜんぶ水）・山の上の空（ずっと下に山）・くもの上（下は くもの海）
+    openTerrain(r, z, e, N, prof, zone) {
+      const L = Math.floor(e.left) - N, R = Math.ceil(e.right) + N;
+      const mid = (e.left + e.right) / 2;
+      if (prof[0] === 'sea') {
+        for (let x = L; x <= R; x++) this.put('water', x + 0.5, -0.55, z);
+        return;
+      }
+      if (prof[1] === 'clouds') {
+        for (let x = L; x <= R; x++) {
+          const n = noise2(x * 0.16, r * 0.16, 7);
+          if (n > 0.42) this.put('cloud', x + 0.5, -12 + (n > 0.7 ? 1 : 0), z);
+        }
+        return;
+      }
+      // やま：コースの下は低く、はなれるほど高い山
+      const AY = -21;
+      const hAt = (x, rr) => {
+        const n = noise2(x * 0.09, rr * 0.09, 11) * 13 + noise2(x * 0.3, rr * 0.3, 12) * 3;
+        const near = Math.abs(x + 0.5 - mid);
+        return Math.max(0, Math.floor(near < 5 ? Math.min(n, 6) : n + (near - 5) * 0.45));
+      };
+      for (let x = L; x <= R; x++) {
+        const h = hAt(x, r);
+        // 見えない内側のブロックは省く（となりより高いところだけ積む）
+        const from = Math.max(0, Math.min(h, hAt(x, r - 1), hAt(x - 1, r), hAt(x + 1, r)) - 1);
+        for (let k = from; k <= h; k++) {
+          const top = k === h;
+          const type = top ? (zone.snow || h >= 13 ? 'snow' : zone.autumn ? 'autumn' : 'grass') : h - k < 2 && !zone.snow ? 'dirt' : 'stone';
+          this.put(type, x + 0.5, AY + k + 0.5, z);
+        }
+      }
+    }
+
     updateRoad() {
       const d = this.d, W = d.W;
       const col = (hex) => new THREE.Color(hex);
@@ -756,6 +925,7 @@ window.KG = window.KG || {};
         red: col('#ff5a4f'), white: col('#ffffff'), gray: col('#9a9aa2'), line: col('#fff7c2'), black: col('#222222'),
       };
       const step = 0.5;
+      const sky = col('#7ee0ff');
       for (let dF = FAR; dF > -BACK; dF -= step) {
         const dN = dF - step;
         const zone = d.zoneAt((dF + dN) / 2 + d.track);
@@ -766,6 +936,13 @@ window.KG = window.KG || {};
           const b = rN.find(x => x.kind === a.kind) || (a.kind !== 'main' ? rN.find(x => x.kind === 'main') : rN[0]);
           if (!b) continue;
           const zF = -dF, zN = -dN;
+          // 海と空：道のかわりに、ふちの線だけ（海は赤白のロープ、空は光る線）
+          if (zone.sea || zone.air) {
+            const y = zone.sea ? -0.1 : 0.02, rc = stripe ? C.white : zone.sea ? C.red : sky;
+            this.quad(a.cx - W * 1.1, a.cx - W, zF, b.cx - W * 1.1, b.cx - W, zN, y, rc);
+            this.quad(a.cx + W, a.cx + W * 1.1, zF, b.cx + W, b.cx + W * 1.1, zN, y, rc);
+            continue;
+          }
           const rc = stripe ? (dark ? C.gray : C.white) : C.red;
           this.quad(a.cx - W * 1.14, a.cx - W, zF, b.cx - W * 1.14, b.cx - W, zN, 0.06, rc);
           this.quad(a.cx + W, a.cx + W * 1.14, zF, b.cx + W, b.cx + W * 1.14, zN, 0.06, rc);
@@ -805,6 +982,7 @@ window.KG = window.KG || {};
           }
           continue;
         }
+        if (zone.sea || zone.air) { this.openObjects(k, z, dist, e, zone, place); continue; }
         for (const side of [-1, 1]) {
           const water = zone[side < 0 ? 'left' : 'right'];
           const edge = side < 0 ? e.left : e.right;
@@ -832,6 +1010,35 @@ window.KG = window.KG || {};
       }
     }
 
+    // 海・空の まわりのもの
+    openObjects(k, z, dist, e, zone, place) {
+      const d = this.d;
+      if (zone.air) {
+        // コースの上の「わ」。分かれ道では、それぞれの道に
+        if (k % 2 === 0 && dist > 1.8) for (const rd of e.roads) place('ring', k % 4 ? 1 : 0, rd.cx, -0.05, z);
+      } else if (k % 2 === 0) {
+        // コースのふちの ブイ
+        place('buoy', k % 4 ? 1 : 0, e.left - 0.35, -0.2, z);
+        place('buoy', k % 4 ? 0 : 1, e.right + 0.35, -0.2, z);
+      }
+      for (const side of [-1, 1]) {
+        if (rnd(k, 5 + side) < 0.35) continue;
+        let kind = KG.pickWeighted(zone.objects, rnd(k, side > 0 ? 1 : 2));
+        if (kind === 'lighthouse') kind = 'lhisle';
+        if (!kind || !MODELS[kind]) continue;
+        const edge = side < 0 ? e.left : e.right;
+        const x = edge + side * ((HALF[kind] || 0.8) + 1.2 + rnd(k, 3 + side) * 7);
+        const y = zone.air ? (zone.air === 'clouds' ? -7 : -4) + rnd(k, 8 + side) * 4 : -0.2;
+        place(kind, Math.floor(rnd(k, 9 + side) * 4), x, y, z, side * -0.25);
+      }
+      // 分かれた道のあいだ
+      if (e.roads.length === 2 && dist > d.forkZ + d.L * 0.6 && k % 2 === 0) {
+        const cx = (e.roads[0].cx + e.roads[1].cx) / 2;
+        if (zone.sea) place('buoy', k % 4 ? 1 : 0, cx, -0.2, z);
+        else place('cloud', 0, cx, -1.6, z);
+      }
+    }
+
     updateSigns() {
       const d = this.d;
       const show = (d.phase === 'question' || d.phase === 'after') && d.forkZ != null;
@@ -848,6 +1055,7 @@ window.KG = window.KG || {};
         const a = Math.max(0, Math.min(1, (dist - 2.5) / 2));
         s.board.material.opacity = a;
         s.post.material.opacity = a;
+        s.post.visible = !d.zoneAt(d.track + dist).air; // 空では かんばんが うかんでいる
       }
     }
 
@@ -950,13 +1158,13 @@ window.KG = window.KG || {};
       if (d.ghostZ != null && d.ghostZ > -2 && d.ghostZ < FAR) {
         if (!this.ghostCar) {
           const m = new ModelBuilder();
-          carModel(m, { color: '#7ee0ff', body: 'normal', wheel: 'normal', roof: 'none', decal: 'none' });
+          vehicleModel(m, { color: '#7ee0ff', body: 'normal', wheel: 'normal', roof: 'none', decal: 'none' }, d.vehicle);
           const mat = new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: 0.38, depthWrite: false });
           this.ghostCar = m.build({ lit: mat, glow: mat });
           this.scene.add(this.ghostCar);
         }
         this.ghostCar.visible = true;
-        this.ghostCar.position.set(centerAt(d.ghostZ), 0, -d.ghostZ);
+        this.ghostCar.position.set(centerAt(d.ghostZ), d.vehicle === 'plane' ? 0.3 : d.vehicle === 'ship' ? -0.12 : 0, -d.ghostZ);
       } else if (this.ghostCar) this.ghostCar.visible = false;
       // かんじモンスター
       const z = d.monsterShown;
@@ -1012,18 +1220,32 @@ window.KG = window.KG || {};
     updateCar() {
       const d = this.d;
       const look = KG.carLook();
-      const key = JSON.stringify(look);
+      const key = JSON.stringify(look) + d.vehicle;
       if (key !== this.carKey) {
         if (this.car) this.scene.remove(this.car);
         const m = new ModelBuilder();
-        carModel(m, look);
+        vehicleModel(m, look, d.vehicle);
         this.car = m.build(this.mats);
+        if (d.vehicle === 'plane') this.car.add(propeller(this.mats));
         this.scene.add(this.car);
         this.carKey = key;
       }
-      const bounce = d.shake ? Math.abs(Math.sin(d.clock * 14)) * 0.03 * (d.speedMul || 0) : 0;
-      this.car.position.set(d.camX, bounce + (d.jumpH || 0) * 1.4, -1.0);
-      this.car.rotation.set(0, -d.carTilt * 0.35, d.carTilt * 0.06);
+      const jump = (d.jumpH || 0) * 1.4;
+      if (d.vehicle === 'ship') {
+        // なみに ゆれる
+        this.car.position.set(d.camX, -0.12 + Math.sin(d.clock * 2.2) * 0.05 + jump, -1.0);
+        this.car.rotation.set(Math.sin(d.clock * 1.3) * 0.03, -d.carTilt * 0.35, Math.sin(d.clock * 1.7) * 0.04 + d.carTilt * 0.06);
+      } else if (d.vehicle === 'plane') {
+        // まがるときは かたむく。プロペラが回る
+        this.car.position.set(d.camX, 0.3 + Math.sin(d.clock * 1.6) * 0.08 + jump, -1.0);
+        this.car.rotation.set(-0.04, -d.carTilt * 0.2, -d.carTilt * 0.22);
+        this.car.scale.setScalar(0.78);
+        this.car.getObjectByName('prop').rotation.z = d.clock * 40;
+      } else {
+        const bounce = d.shake ? Math.abs(Math.sin(d.clock * 14)) * 0.03 * (d.speedMul || 0) : 0;
+        this.car.position.set(d.camX, bounce + jump, -1.0);
+        this.car.rotation.set(0, -d.carTilt * 0.35, d.carTilt * 0.06);
+      }
     }
   }
 

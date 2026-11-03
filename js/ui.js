@@ -104,14 +104,18 @@ const renderers = {
   map() {
     $('#mapTitle').textContent = `ちず（${KG.grade}ねんせいの かんじ）`;
     const cleared = c => c.stages.filter((_, i) => (KG.state.stages[KG.stageId(c.id, i)] || {}).stars >= 1).length;
+    // のりもののコース（ふね・ひこうき・そら）は、条件を満たすと あらわれる
+    const extras = KG.extraCourses();
+    const all = KG.courses.concat(extras.filter(c => c.open));
     // コースのタブ：どこまで進んだかも見せる
     const tabs = $('#courseTabs');
-    tabs.innerHTML = KG.courses.map(c => {
-      const n = cleared(c), all = n === c.stages.length;
-      return `<button data-c="${c.id}" class="${c.id === ui.course ? 'on' : ''}">${c.emoji} ${c.name} <small>${all ? '★クリア！' : `${n}/${c.stages.length}`}</small></button>`;
+    tabs.innerHTML = all.map(c => {
+      const n = cleared(c), done = n === c.stages.length;
+      return `<button data-c="${c.id}" class="${c.id === ui.course ? 'on' : ''} ${c.extra ? 'extra' : ''}">${c.emoji} ${c.name} <small>${done ? '★クリア！' : `${n}/${c.stages.length}`}</small></button>`;
     }).join('');
     tabs.querySelectorAll('button').forEach(b => (b.onclick = () => { ui.course = b.dataset.c; renderers.map(); }));
-    const course = KG.courses.find(c => c.id === ui.course) || KG.courses[0];
+    const course = all.find(c => c.id === ui.course) || KG.courses[0];
+    const hint = extras.find(c => !c.open);
 
     // ステージの記録
     const recs = course.stages.map((_, i) => KG.state.stages[KG.stageId(course.id, i)] || { stars: 0 });
@@ -120,12 +124,14 @@ const renderers = {
     const stars = recs.reduce((a, r) => a + (r.stars || 0), 0);
     const done = cleared(course);
     const pct = Math.round((done / course.stages.length) * 100);
-    const gradeStages = KG.courses.reduce((a, c) => a + c.stages.length, 0);
-    const gradeDone = KG.courses.reduce((a, c) => a + cleared(c), 0);
+    const gradeStages = all.reduce((a, c) => a + c.stages.length, 0);
+    const gradeDone = all.reduce((a, c) => a + cleared(c), 0);
     $('#mapProgress').innerHTML = `
       <div class="mp-row"><b>${course.emoji} ${course.name}コース</b> クリア ${done} / ${course.stages.length}
         <span class="mp-bar"><i style="width:${pct}%"></i></span> <i class="ico ico-star"></i> ${stars} / ${course.stages.length * 3}</div>
-      <div class="mp-row small">${KG.grade}ねんせい ぜんぶで ${gradeDone} / ${gradeStages} ステージ${gradeDone === gradeStages ? '　🏆 コンプリート！' : ''}</div>`;
+      <div class="mp-row small">${KG.grade}ねんせい ぜんぶで ${gradeDone} / ${gradeStages} ステージ${gradeDone === gradeStages && !hint ? '　🏆 コンプリート！' : ''}</div>
+      ${course.extra ? `<div class="mp-row small lap">${course.emoji} ${course.lap}しゅうめ：じかんが みじかく、むずかしい もんだいが でるよ！</div>` : ''}
+      ${hint ? `<div class="mp-row small teaser">❓ ${esc(hint.hint)}</div>` : ''}`;
 
     // よみで はしる／かきで はしる
     const mode = KG.state.driveMode === 'write' ? 'write' : 'read';
@@ -171,8 +177,15 @@ const renderers = {
       KG.audio.comboFanfare(5);
       toast(current >= course.stages.length ? `${course.name}コース クリア！ おめでとう！` : 'あたらしい ステージが ひらいたよ！');
     };
-    requestAnimationFrame(() => KG.MapView.render({ world: $('#mapWorld'), canvas: $('#mapCanvas'), course: course.id, nodes, current, from: from == null ? current : from, celebrate }));
+    requestAnimationFrame(() => KG.MapView.render({ world: $('#mapWorld'), canvas: $('#mapCanvas'), course: course.map || course.id, nodes, current, from: from == null ? current : from, celebrate }));
     KG.state.mapSeen[key] = current;
+    // あたらしい のりものが あらわれた！
+    const seen = KG.state.vehiclesSeen || (KG.state.vehiclesSeen = []);
+    const fresh = extras.find(c => c.open && !seen.includes(KG.grade + ':' + c.id));
+    if (fresh) {
+      seen.push(KG.grade + ':' + fresh.id);
+      setTimeout(() => showVehicle(fresh), 700);
+    }
     KG.save();
   },
 
@@ -582,6 +595,18 @@ function renderBushu() {
   }));
 }
 
+// 「〜が あらわれた！」
+function showVehicle(c) {
+  const m = $('#vehicleModal');
+  $('#vmIcon').textContent = c.emoji;
+  $('#vmTitle').textContent = `${c.name}が あらわれた！`;
+  $('#vmMsg').textContent = c.hello;
+  m.hidden = false;
+  KG.audio.goal();
+  $('#vmGo').onclick = () => { m.hidden = true; ui.course = c.id; renderers.map(); };
+  $('#vmLater').onclick = () => { m.hidden = true; };
+}
+
 // 図鑑の字をタップ：書き順のアニメ・部首・例文
 function openStroke(ch) {
   if (!metChar(ch)) { toast('まだ であっていない字だよ'); return; }
@@ -921,7 +946,7 @@ function startDrive(stage) {
   if (KG.state.settings.control === 'tilt' && !tiltGranted) requestTilt(); // タップの流れの中で許可をもらう
 
   show('drive');
-  KG.music.play(stage.course.id);
+  KG.music.play(stage.course.music || stage.course.id);
   const hud = makeHud(items, mode, missions);
   ui.drive = new KG.Drive({
     mode,

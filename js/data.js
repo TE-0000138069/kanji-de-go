@@ -14,6 +14,17 @@ KG.COURSE_DEFS = [
   { id: 'yama', name: 'やま', emoji: '⛰️', sky: ['#a4dcff', '#f0fbff'], grass: ['#6cbf5b', '#5daf4c'] },
 ];
 
+// クリアすると あらわれる のりもののコース（同じ字を、だんだん むずかしく）
+// lap：2＝2しゅうめ（時間が短い・むずかしい問題が多い）3＝3しゅうめ（もっと速い）
+KG.EXTRA_DEFS = [
+  { id: 'fune', name: 'ふね', emoji: '⛵', vehicle: 'ship', lap: 2, zones: 'fune', music: 'umi', map: 'umi', from: 'umi',
+    hint: 'うみコースを ぜんぶ クリアすると…？', hello: 'うみの うえを すすもう！' },
+  { id: 'hikoki', name: 'ひこうき', emoji: '✈️', vehicle: 'plane', lap: 3, zones: 'hikoki', music: 'yama', map: 'yama', from: 'yama',
+    hint: 'やまコースを ぜんぶ クリアすると…？', hello: 'やまの うえの そらを とぼう！' },
+  { id: 'sora', name: 'そら', emoji: '☁️', vehicle: 'plane', lap: 3, zones: 'sora', music: 'yama', map: 'yama', from: 'all', stageSize: 12,
+    hint: 'ぜんぶの ステージを クリアすると…？', hello: 'くもの うえを とんでいこう！' },
+];
+
 KG.GRADES = [1, 2, 3, 4, 5, 6];
 KG.STAGE_SIZE = 9;
 KG.REASON_DIFF = { m: 1, s: 2, h: 3, e: 3 };
@@ -163,4 +174,35 @@ KG.explain = function (q) {
   const yomi = (q.text.match(/\[(.+?)\]/) || [])[1] || '';
   const note = { s: 'かたちが にているね。', h: 'よみが おなじだね。', m: 'いみが にているね。', e: 'よく まちがえるところだよ。' }[q.reason] || '';
   return `「${yomi}」は「${q.correct}」と かくよ。「${q.wrong}」と ${note}`;
+};
+
+// ---- のりもののコース（ふね・ひこうき・そら）----
+KG.courseCleared = c => c.stages.every((_, i) => (KG.state.stages[KG.stageId(c.id, i)] || {}).stars >= 1);
+
+// いまの学年の、のりもののコース。open：あらわれているか
+KG.extraCourses = function () {
+  const base = id => KG.courses.find(c => c.id === id);
+  const list = [];
+  for (const def of KG.EXTRA_DEFS) {
+    let chars, stages;
+    if (def.from === 'all') {
+      chars = KG.courses.flatMap(c => c.chars);
+      stages = [];
+      for (let j = 0; j < chars.length; j += def.stageSize) stages.push(chars.slice(j, j + def.stageSize));
+    } else {
+      const b = base(def.from);
+      if (!b) continue;
+      chars = b.chars;
+      stages = b.stages;
+    }
+    list.push({ ...def, grade: KG.grade, chars, stages, extra: true });
+  }
+  // あらわれる条件
+  const done = id => { const c = base(id) || list.find(x => x.id === id); return !!c && KG.courseCleared(c); };
+  for (const c of list) {
+    c.open = c.from === 'all'
+      ? KG.courses.every(KG.courseCleared) && list.filter(x => x.from !== 'all').every(x => done(x.id))
+      : done(c.from);
+  }
+  return list;
 };

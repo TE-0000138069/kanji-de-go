@@ -61,6 +61,7 @@ function defaultState() {
     recent: [],    // 直近の結果（1=すっきり正解 0=それ以外）
     usage: {},     // 日付 -> 秒
     radicalClaimed: [], // ごほうびをもらった部首カード
+    vehiclesSeen: [],   // 「〜が あらわれた！」を見せた のりもののコース（学年つき）
   };
 }
 
@@ -311,11 +312,12 @@ function shuffle(a) {
 }
 KG.shuffle = shuffle;
 
-function pickQuestionFor(ch, usedIds) {
+function pickQuestionFor(ch, usedIds, bump = 0) {
   const today = KG.today();
   const sk = KG.prog(ch).read;
   const doneToday = sk.todayDay === today ? sk.todayQ : [];
-  const target = { 1: 1, 2: 1, 3: 2, 4: 3, 5: 3 }[KG.state.difficulty];
+  // のりもののコースでは、まちがえやすい問題（difficulty が高い）を多くする
+  const target = Math.min(3, { 1: 1, 2: 1, 3: 2, 4: 3, 5: 3 }[KG.state.difficulty] + bump);
   const cands = KG.qByKanji[ch].concat(KG.drillQuestions(ch)).filter(q => !usedIds.has(q.id));
   if (!cands.length) return null;
   // 今日まだ正解していない問題を優先し、難易度が近いものを選ぶ。ドリルの例文は少し優先する
@@ -365,14 +367,15 @@ KG.pickDriveQuestions = function (stage, count = 10, mode = 'read') {
   // 字ごとに問題を決める。字が足りないときは、同じ字の別の問題を足す
   const used = new Set();
   const qs = [];
+  const lap = (stage.course && stage.course.lap) || 1, bump = lap - 1;
   for (const c of chosen) {
-    const q = pickQuestionFor(c, used);
+    const q = pickQuestionFor(c, used, bump);
     if (q) { qs.push(q); used.add(q.id); }
   }
   let guard = 0;
   while (qs.length < count && chosen.length && guard++ < 50) {
     const c = chosen[guard % chosen.length];
-    let q = pickQuestionFor(c, used);
+    let q = pickQuestionFor(c, used, bump);
     if (!q) q = KG.qByKanji[c][Math.floor(Math.random() * 2)];
     qs.push(q); used.add(q.id);
   }

@@ -36,6 +36,41 @@ KG.ZONES = {
     { name: 'ゆきやま', sky: ['#a6d2f5', '#f0f8ff'], grass: ['#f4f8fc', '#e7eef6'], backdrop: 'snowpeaks', snow: true,
       objects: { snowpine: 7, snowman: 1, rock: 1 }, events: ['birds'] },
   ],
+  // ふね：海の上を進む（sea）。まわりは島や灯台
+  fune: [
+    { name: 'おきの うみ', sea: true, sky: ['#4fb6ff', '#dff4ff'], grass: ['#3fa9f5', '#38a0ea'], backdrop: 'sea',
+      objects: { buoy: 4, island: 2, boat: 3, rock: 1 }, events: ['dolphin', 'birds', 'plane'] },
+    { name: 'みなみの しま', sea: true, sky: ['#3fb4ff', '#e6fbff'], grass: ['#36b3e8', '#30a9df'], backdrop: 'sea',
+      objects: { island: 5, buoy: 2, boat: 1 }, events: ['dolphin', 'balloon'] },
+    { name: 'とうだいの しま', sea: true, sky: ['#5bbcfb', '#e8f7ff'], grass: ['#3a9fe8', '#3496de'], backdrop: 'cliff',
+      objects: { lighthouse: 2, rock: 3, buoy: 3, boat: 1 }, events: ['birds', 'dolphin'] },
+    { name: 'こおりの うみ', sea: true, sky: ['#9cc9ee', '#f2f8ff'], grass: ['#4a9fd8', '#4496cf'], backdrop: 'snowpeaks', snow: true,
+      objects: { iceberg: 6, buoy: 1 }, events: ['birds'] },
+    { name: 'ゆうひの おき', sea: true, sky: ['#ff7f5a', '#ffd29a'], grass: ['#e98a5b', '#de8052'], backdrop: 'sea_sunset', sun: true,
+      objects: { island: 3, boat: 3, buoy: 2 }, events: ['dolphin', 'birds'] },
+  ],
+  // ひこうき：山の上の空を とぶ（air: 'peaks'）。下に山が見える
+  hikoki: [
+    { name: 'やまの そら', air: 'peaks', sky: ['#6fbfff', '#e4f5ff'], grass: ['#7fbf6a', '#74b55f'], backdrop: 'mountains',
+      objects: { cloud: 4 }, events: ['birds', 'balloon'] },
+    { name: 'もみじの そら', air: 'peaks', autumn: true, sky: ['#7cc4ff', '#fff1dc'], grass: ['#d9883a', '#cf7d30'], backdrop: 'mountains',
+      objects: { cloud: 3 }, events: ['birds'] },
+    { name: 'ゆきやまの そら', air: 'peaks', snow: true, sky: ['#9fcff5', '#f4faff'], grass: ['#e9f0f7', '#dde6ef'], backdrop: 'snowpeaks',
+      objects: { cloud: 5 }, events: ['birds'] },
+    { name: 'ゆうやけの やま', air: 'peaks', sun: true, sky: ['#ff8a5a', '#ffd9a0'], grass: ['#a9a35a', '#9f9950'], backdrop: 'mountains',
+      objects: { cloud: 3 }, events: ['birds', 'balloon'] },
+  ],
+  // そら：くもの上を とぶ（air: 'clouds'）。下は くもの海
+  sora: [
+    { name: 'くもの うみ', air: 'clouds', sky: ['#3d9df0', '#e9f6ff'], grass: ['#f4f8ff', '#e9f1fb'], backdrop: 'none',
+      objects: { cloud: 4 }, events: ['plane', 'balloon', 'birds'] },
+    { name: 'にじの そら', air: 'clouds', rainbow: true, sky: ['#58b2ff', '#fff6fb'], grass: ['#fdf3ff', '#f3e9fb'], backdrop: 'none',
+      objects: { cloud: 3 }, events: ['balloon'] },
+    { name: 'ゆうやけの そら', air: 'clouds', sun: true, sky: ['#ff6f61', '#ffd29a'], grass: ['#ffe2c4', '#f7d6b5'], backdrop: 'none',
+      objects: { cloud: 4 }, events: ['birds', 'plane'] },
+    { name: 'ほしぞら', air: 'clouds', night: true, sky: ['#0b1440', '#2c3a78'], grass: ['#5a6694', '#525d8a'], backdrop: 'none',
+      objects: { cloud: 3 }, events: [] },
+  ],
 };
 
 // 何度呼んでも同じ値になる乱数（景色が毎フレームちらつかないように）
@@ -325,6 +360,31 @@ KG.OBJ = {
     ctx.fillStyle = 'rgba(255,240,170,0.35)';
     ctx.beginPath(); ctx.moveTo(x, y - h - u * 0.22);
     ctx.lineTo(x + Math.cos(a) * u * 4, y - h - u * 0.22 - u * 0.5); ctx.lineTo(x + Math.cos(a) * u * 4, y - h - u * 0.22 + u * 0.5); ctx.fill();
+  },
+  // ---- ふね・ひこうきのコース ----
+  buoy(ctx, x, y, u, r, T) {
+    const bob = Math.sin(T * 2.4 + r * 6) * u * 0.06;
+    ctx.fillStyle = r > 0.5 ? '#ff5a4f' : '#ffd54a';
+    KG.rr(ctx, x - u * 0.25, y - u * 0.7 + bob, u * 0.5, u * 0.6, u * 0.1); ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(x - u * 0.25, y - u * 0.45 + bob, u * 0.5, u * 0.12);
+  },
+  island(ctx, x, y, u, r, T) {
+    ctx.fillStyle = '#f3dc9b';
+    ctx.beginPath(); ctx.ellipse(x, y - u * 0.05, u * 1.4, u * 0.35, 0, Math.PI, 0); ctx.fill();
+    KG.OBJ.palm(ctx, x + (r - 0.5) * u, y - u * 0.2, u * 0.9, r, T);
+  },
+  iceberg(ctx, x, y, u, r) {
+    ctx.fillStyle = '#f4fbff';
+    ctx.beginPath(); ctx.moveTo(x - u, y); ctx.lineTo(x - u * 0.5, y - u * (0.9 + r * 0.6)); ctx.lineTo(x + u * 0.2, y - u * (1.3 + r * 0.5)); ctx.lineTo(x + u, y); ctx.fill();
+    ctx.fillStyle = '#cfe6f7';
+    ctx.beginPath(); ctx.moveTo(x + u * 0.2, y - u * (1.3 + r * 0.5)); ctx.lineTo(x + u, y); ctx.lineTo(x + u * 0.3, y); ctx.fill();
+  },
+  cloud(ctx, x, y, u, r) {
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    const yy = y - u * (1.5 + r * 1.5);
+    ctx.fillRect(x - u * 1.2, yy, u * 2.4, u * 0.6);
+    ctx.fillRect(x - u * 0.6, yy - u * 0.4, u * 1.3, u * 0.4);
   },
   rock(ctx, x, y, u, r) {
     ctx.fillStyle = '#8d939b';

@@ -14,11 +14,14 @@ KG.Drive = class {
     this.slow = st.slow;
     this.shake = st.shake;
     this.bgSpeed = st.bgSpeed;
-    this.T = KG.questionTime();
+    // のりもの：'car'（くるま）'ship'（ふね）'plane'（ひこうき）。のりもののコースは2・3しゅうめで、時間が短く速い
+    this.vehicle = this.course.vehicle || 'car';
+    this.lap = this.course.lap || 1;
+    this.T = Math.max(3, KG.questionTime() * (this.lap >= 3 ? 0.75 : this.lap === 2 ? 0.85 : 1));
     const g = (KG.state.profile && KG.state.profile.grade) || 2;
     this.GAP = g <= 2 ? 6 : 5;        // 分かれ道と分かれ道の間の秒数
     this.DETOUR = 4;                 // 遠回りで増える秒数
-    this.SPEED = 8;                  // 1秒に進む距離
+    this.SPEED = 8 * (1 + (this.lap - 1) * 0.1); // 1秒に進む距離
     this.W = 0.9;                    // 道の半分の幅
     this.D = 2.4;                    // 分かれた道どうしの、左右のずれ
     this.L = 10;                     // 道が分かれきるまでの距離
@@ -28,7 +31,7 @@ KG.Drive = class {
     this.SP = 4;                     // 建物や木を置く間隔
 
     // エリア：ステージごとに始まりのエリアを変えて、毎回ちがう景色にする
-    let zones = KG.ZONES[this.course.id] || KG.ZONES.machi;
+    let zones = KG.ZONES[this.course.zones || this.course.id] || KG.ZONES.machi;
     let start = (this.stageIndex || 0) % zones.length;
     if (zones[start].tunnel) start = (start + 1) % zones.length;
     this.zones = zones.slice(start).concat(zones.slice(0, start));
@@ -717,9 +720,16 @@ KG.Drive = class {
       ctx.fill();
     }
 
-    // 道
+    // 道（海では水の上のコース、空では空中のコース）
     const dark = zone.tunnel;
-    for (const rf of eF.roads) {
+    if (zone.sea || zone.air) {
+      for (const rf of eF.roads) {
+        const rn = eN.roads.find(x => x.kind === rf.kind) || (rf.kind !== 'main' ? eN.roads.find(x => x.kind === 'main') : eN.roads[0]);
+        if (!rn) continue;
+        this.quad(rf.cx, rn.cx, this.W * 1.1, pF, pN, stripe ? '#ffffff' : (zone.sea ? '#ff5a4f' : '#7ee0ff'));
+        this.quad(rf.cx, rn.cx, this.W, pF, pN, zone.sea ? (stripe ? '#6cc4f7' : '#62bbf0') : (stripe ? 'rgba(220,240,255,0.75)' : 'rgba(205,232,255,0.75)'));
+      }
+    } else for (const rf of eF.roads) {
       const rn = eN.roads.find(x => x.kind === rf.kind) || (rf.kind !== 'main' ? eN.roads.find(x => x.kind === 'main') : eN.roads[0]);
       if (!rn) continue;
       this.quad(rf.cx, rn.cx, this.W * 1.12, pF, pN, stripe ? (dark ? '#9a9aa2' : '#ffffff') : '#ff5a4f');
@@ -842,7 +852,7 @@ KG.Drive = class {
       return KG.OBJ.tlight(ctx, this.sx(x, p.ux), p.y - 2.2 * u, u);
     }
     if (o.kind === 'center') {
-      const kind = o.zone.objects.flowers ? 'flowers' : o.zone.objects.snowpine ? 'snowpine' : o.zone.objects.palm ? 'palm' : 'tree';
+      const kind = o.zone.sea ? 'buoy' : o.zone.air ? 'cloud' : o.zone.objects.flowers ? 'flowers' : o.zone.objects.snowpine ? 'snowpine' : o.zone.objects.palm ? 'palm' : 'tree';
       const x = (e.roads[0].cx + e.roads[e.roads.length - 1].cx) / 2;
       return KG.OBJ[kind](ctx, this.sx(x, p.ux), p.y, u, o.r, this.clock, false);
     }
@@ -1055,6 +1065,41 @@ KG.Drive = class {
     ctx.globalAlpha = 1;
   }
 
+  // 2D表示の ふね・ひこうき（うしろから見た形）
+  drawVehicle2d(x, y, cw, ch, color) {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.translate(x, y);
+    if (this.vehicle === 'ship') {
+      ctx.rotate(this.carTilt * 0.08 + Math.sin(this.clock * 2.2) * 0.04);
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.beginPath(); ctx.ellipse(0, ch * 0.42, cw * 0.62, ch * 0.13, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = color;
+      ctx.beginPath(); ctx.moveTo(-cw * 0.5, -ch * 0.05); ctx.lineTo(cw * 0.5, -ch * 0.05); ctx.lineTo(cw * 0.36, ch * 0.4); ctx.lineTo(-cw * 0.36, ch * 0.4); ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(-cw * 0.28, -ch * 0.5, cw * 0.56, ch * 0.45);
+      ctx.fillStyle = '#a9dcff';
+      ctx.fillRect(-cw * 0.2, -ch * 0.4, cw * 0.4, ch * 0.16);
+      ctx.fillStyle = '#2b2d42';
+      ctx.fillRect(-cw * 0.03, -ch * 0.95, cw * 0.06, ch * 0.45);
+    } else {
+      ctx.translate(0, -ch * 0.25 + Math.sin(this.clock * 1.6) * ch * 0.04);
+      ctx.rotate(this.carTilt * 0.25);
+      ctx.fillStyle = color;
+      KG.rr(ctx, -cw * 0.62, -ch * 0.08, cw * 1.24, ch * 0.14, ch * 0.05); ctx.fill(); // つばさ
+      KG.rr(ctx, -cw * 0.2, -ch * 0.3, cw * 0.4, ch * 0.42, ch * 0.12); ctx.fill();    // どう体
+      ctx.fillRect(-cw * 0.03, -ch * 0.62, cw * 0.06, ch * 0.34);                     // しっぽ
+      KG.rr(ctx, -cw * 0.22, -ch * 0.36, cw * 0.44, ch * 0.08, ch * 0.03); ctx.fill();
+      ctx.fillStyle = '#a9dcff';
+      ctx.fillRect(-cw * 0.1, -ch * 0.24, cw * 0.2, ch * 0.1);
+      ctx.fillStyle = '#ff2a2a';
+      ctx.fillRect(-cw * 0.64, -ch * 0.06, cw * 0.05, ch * 0.08);
+      ctx.fillStyle = '#33c27a';
+      ctx.fillRect(cw * 0.59, -ch * 0.06, cw * 0.05, ch * 0.08);
+    }
+    ctx.restore();
+  }
+
   drawCar() {
     const ctx = this.ctx, w = this.w, h = this.h;
     const cw = Math.min(w * 0.2, h * 0.28), ch = cw * 0.62;
@@ -1078,6 +1123,7 @@ KG.Drive = class {
       ctx.beginPath(); ctx.ellipse(x, y, cw * 0.9, ch * 0.9, 0, 0, Math.PI * 2); ctx.fill();
     }
 
+    if (this.vehicle !== 'car') return this.drawVehicle2d(x, y, cw, ch, color);
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(this.carTilt * 0.08);
