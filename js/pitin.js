@@ -261,7 +261,7 @@ KG.Pitin = class {
 
   strokeDone() {
     KG.audio.correct();
-    if (this.missAll === 0) KG.audio.star && KG.audio.star();
+    if (this.missAll === 0) KG.audio.star(2);
     this.say(this.missAll === 0 ? 'かきじゅん かんぺき！ しゅうり かんりょう！ 🔧✨' : 'しゅうり かんりょう！ 🔧');
     setTimeout(() => {
       if (this.step !== 'stroke') return;
